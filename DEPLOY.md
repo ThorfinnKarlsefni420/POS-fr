@@ -27,8 +27,8 @@ Deploy them in this order: Database → API → Web app.
 6. On your local machine, run the database migrations against Supabase:
    ```bash
    cd /path/to/POS-fr
-   DATABASE_URL="<your_supabase_connection_string>" \
-     npx prisma migrate deploy --schema=packages/database/prisma/schema.prisma
+DATABASE_URL="<your_supabase_connection_string>" \
+   npx prisma migrate deploy --schema=packages/database/prisma/schema.prisma
    ```
    You should see:
    ```

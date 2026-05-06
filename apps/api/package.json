@@ -4,10 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "postinstall": "prisma generate --schema=../../packages/database/prisma/schema.prisma",
     "dev": "node --env-file=.env --import tsx/esm --watch src/index.ts",
     "build": "esbuild src/index.ts --bundle --platform=node --format=cjs --outfile=dist/index.cjs --external:@prisma/client --external:pg --external:@prisma/adapter-pg",
     "start": "node dist/index.cjs",
-    "migrate": "prisma migrate deploy --schema=../packages/database/prisma/schema.prisma"
+    "migrate": "prisma migrate deploy --schema=../../packages/database/prisma/schema.prisma"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
