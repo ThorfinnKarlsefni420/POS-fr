@@ -59,7 +59,7 @@ Deploy them in this order: Database → API → Web app.
 3. Set the following:
    - **Root Directory**: `apps/api`
    - **Runtime**: `Node`
-   - **Build Command**: `npm install`
+   - **Build Command**: `npm install && npm run build`
    - **Start Command**: `npm run start`
 4. Under **Environment Variables**, add:
 

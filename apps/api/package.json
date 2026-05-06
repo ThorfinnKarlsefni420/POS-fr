@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "node --env-file=.env --import tsx/esm --watch src/index.ts",
-    "start": "node --import tsx/esm src/index.ts",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --external:@prisma/client",
+    "start": "node dist/index.js",
     "migrate": "prisma migrate deploy --schema=../packages/database/prisma/schema.prisma"
   },
   "dependencies": {
@@ -17,6 +18,7 @@
   "devDependencies": {
     "@types/node": "^24.12.2",
     "dotenv": "^17.4.2",
+    "esbuild": "^0.25.12",
     "prisma": "^7.8.0",
     "tsx": "^4.21.0"
   }
