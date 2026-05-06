@@ -1,0 +1,23 @@
+{
+  "name": "api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file=.env --import tsx/esm --watch src/index.ts",
+    "start": "node --import tsx/esm src/index.ts",
+    "migrate": "prisma migrate deploy --schema=../packages/database/prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "@prisma/client": "^7.8.0",
+    "@sendgrid/mail": "^8.1.6",
+    "hono": "^4.7.11"
+  },
+  "devDependencies": {
+    "@types/node": "^24.12.2",
+    "dotenv": "^17.4.2",
+    "prisma": "^7.8.0",
+    "tsx": "^4.21.0"
+  }
+}

@@ -1,0 +1,60 @@
+import { Hono } from 'hono';
+import { prisma } from '../lib/prisma';
+import { getStoreContext } from '../middleware/store-context';
+
+export const usersRouter = new Hono();
+
+usersRouter.get('/', async (c) => {
+  const { storeId, role } = await getStoreContext(c);
+  const users = await prisma.user.findMany({
+    where: role === 'SUPERADMIN' && !storeId ? {} : { storeId: storeId ?? undefined },
+    select: { id: true, name: true, role: true, storeId: true },
+    orderBy: { name: 'asc' },
+  });
+  return c.json(users);
+});
+
+usersRouter.post('/', async (c) => {
+  const body = await c.req.json<{
+    name: string;
+    pin: string;
+    role?: 'ADMIN' | 'CASHIER' | 'SUPERADMIN';
+    storeId?: string;
+  }>();
+  const user = await prisma.user.create({
+    data: {
+      name: body.name,
+      pin: body.pin,
+      role: body.role ?? 'CASHIER',
+      storeId: body.storeId ?? null,
+    },
+    select: { id: true, name: true, role: true, storeId: true },
+  });
+  return c.json(user, 201);
+});
+
+// Verify a specific user's PIN (for login)
+usersRouter.post('/verify', async (c) => {
+  const body = await c.req.json<{ userId: string; pin: string }>();
+  const user = await prisma.user.findUnique({
+    where: { id: body.userId },
+    select: { id: true, name: true, role: true, pin: true, storeId: true },
+  });
+  // TODO: replace plain comparison with bcrypt.compare() before production
+  if (!user || user.pin !== body.pin) {
+    return c.json({ error: 'Invalid PIN' }, 401);
+  }
+  return c.json({ id: user.id, name: user.name, role: user.role, storeId: user.storeId });
+});
+
+// Verify any admin PIN (for the admin PIN gate)
+usersRouter.post('/verify-admin', async (c) => {
+  const body = await c.req.json<{ pin: string }>();
+  // TODO: replace plain comparison with bcrypt.compare() before production
+  const admin = await prisma.user.findFirst({
+    where: { role: { in: ['ADMIN', 'SUPERADMIN'] }, pin: body.pin },
+    select: { id: true, name: true, role: true },
+  });
+  if (!admin) return c.json({ error: 'Invalid admin PIN' }, 401);
+  return c.json(admin);
+});
