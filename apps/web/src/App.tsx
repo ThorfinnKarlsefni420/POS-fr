@@ -10,6 +10,7 @@ import { PinGate } from '@/features/auth/components/pin-gate';
 import { LoginPage } from '@/features/auth/components/login-page';
 import { SuperAdminPage } from '@/features/superadmin/superadmin-page';
 import { useOfflineSync } from '@/hooks/use-offline-sync';
+import { useSettingsSync } from '@/hooks/use-settings-sync';
 import { useAuthStore } from '@/features/auth/store/use-auth-store';
 
 const queryClient = new QueryClient({
@@ -18,6 +19,7 @@ const queryClient = new QueryClient({
 
 function AppRoutes() {
   useOfflineSync();
+  useSettingsSync();
   const user = useAuthStore((s) => s.user);
 
   if (!user) return <LoginPage />;
@@ -43,7 +45,7 @@ function AppRoutes() {
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/returns" element={<ReturnsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
-          <Route path="/admin" element={<AdminPage />} />
+          <Route path="/admin" element={user?.role === 'CASHIER' ? <Navigate to="/pos" replace /> : <AdminPage />} />
         </Route>
       </Routes>
       <PinGate />

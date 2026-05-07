@@ -47,6 +47,41 @@ usersRouter.post('/verify', async (c) => {
   return c.json({ id: user.id, name: user.name, role: user.role, storeId: user.storeId });
 });
 
+// Update a user (name, pin, role, storeId)
+usersRouter.patch('/:id', async (c) => {
+  const body = await c.req.json<{
+    name?: string;
+    pin?: string;
+    role?: 'ADMIN' | 'CASHIER' | 'SUPERADMIN';
+    storeId?: string | null;
+  }>();
+  const user = await prisma.user.update({
+    where: { id: c.req.param('id') },
+    data: {
+      ...(body.name !== undefined && { name: body.name }),
+      ...(body.pin  !== undefined && { pin:  body.pin  }),
+      ...(body.role !== undefined && { role: body.role }),
+      ...(body.storeId !== undefined && { storeId: body.storeId }),
+    },
+    select: { id: true, name: true, role: true, storeId: true },
+  });
+  return c.json(user);
+});
+
+// Delete a user — blocked if user has any shifts or transactions (audit trail)
+usersRouter.delete('/:id', async (c) => {
+  const id = c.req.param('id');
+  const [shifts, txs] = await Promise.all([
+    prisma.shift.count({ where: { userId: id } }),
+    prisma.transaction.count({ where: { userId: id } }),
+  ]);
+  if (shifts > 0 || txs > 0) {
+    return c.json({ error: 'Cannot delete a user who has transaction history.' }, 409);
+  }
+  await prisma.user.delete({ where: { id } });
+  return c.json({ ok: true });
+});
+
 // Verify any admin PIN (for the admin PIN gate)
 usersRouter.post('/verify-admin', async (c) => {
   const body = await c.req.json<{ pin: string }>();

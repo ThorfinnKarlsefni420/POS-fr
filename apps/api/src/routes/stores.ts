@@ -120,3 +120,33 @@ storesRouter.get('/:id/stats', async (c) => {
     topProduct,
   });
 });
+
+// DELETE /stores/:id — hard-delete a store and all its data (used by tests + admin)
+storesRouter.delete('/:id', async (c) => {
+  const id = c.req.param('id');
+  const store = await prisma.store.findUnique({ where: { id } });
+  if (!store) return c.json({ error: 'Store not found' }, 404);
+
+  // Must delete in FK-dependency order (no cascade defined in schema)
+  const shifts   = await prisma.shift.findMany({ where: { storeId: id }, select: { id: true } });
+  const shiftIds = shifts.map((s) => s.id);
+  const txs      = await prisma.transaction.findMany({ where: { storeId: id }, select: { id: true } });
+  const txIds    = txs.map((t) => t.id);
+  const items    = await prisma.item.findMany({ where: { storeId: id }, select: { id: true } });
+  const itemIds  = items.map((i) => i.id);
+
+  await prisma.vendorPayment.deleteMany({ where: { creditSale: { transactionId: { in: txIds } } } });
+  await prisma.creditSale.deleteMany({ where: { transactionId: { in: txIds } } });
+  await prisma.lineItem.deleteMany({ where: { transactionId: { in: txIds } } });
+  await prisma.transaction.deleteMany({ where: { storeId: id } });
+  await prisma.cashLog.deleteMany({ where: { shiftId: { in: shiftIds } } });
+  await prisma.shift.deleteMany({ where: { storeId: id } });
+  await prisma.inventoryAdjustment.deleteMany({ where: { itemId: { in: itemIds } } });
+  await prisma.item.deleteMany({ where: { storeId: id } });
+  await prisma.storeSetting.deleteMany({ where: { storeId: id } });
+  await prisma.vendor.deleteMany({ where: { storeId: id } });
+  await prisma.user.deleteMany({ where: { storeId: id } });
+  await prisma.store.delete({ where: { id } });
+
+  return c.json({ ok: true });
+});

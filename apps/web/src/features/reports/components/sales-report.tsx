@@ -1,5 +1,6 @@
-import { Download } from 'lucide-react';
+import { FileText, Download } from 'lucide-react';
 import { useSalesReport } from '../hooks/use-reports';
+import { useAuthStore } from '@/features/auth/store/use-auth-store';
 import { api } from '@/lib/api';
 
 function kes(n: number) {
@@ -8,15 +9,65 @@ function kes(n: number) {
 
 const PAYMENT_COLORS: Record<string, string> = {
   CASH: 'oklch(0.55 0.15 145)',
-  CARD: 'oklch(0.55 0.15 260)',
-  MPESA: 'oklch(0.55 0.18 155)',
-  CREDIT: 'oklch(0.65 0.15 50)',
 };
 
 interface Props { from: string; to: string; }
 
 export function SalesReport({ from, to }: Props) {
   const { data, isLoading } = useSalesReport(from, to);
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPERADMIN';
+
+  const handleExportCsv = () => {
+    api.reports.exportCsv(`/reports/sales/export?from=${from}&to=${to}`, `sales-${from}-${to}.csv`);
+  };
+
+  const handleExportPDF = () => {
+    if (!data) return;
+    const { totalRevenue, transactionCount, avgTransaction, topProducts, daily } = data;
+    const rows = topProducts.map((p, i) => `
+      <tr>
+        <td>${i + 1}</td><td>${p.name}</td><td>${p.category || '—'}</td>
+        <td style="text-align:right">${Number(p.qty).toLocaleString()}</td>
+        <td style="text-align:right;font-weight:bold">${kes(p.revenue)}</td>
+      </tr>`).join('');
+    const dailyRows = daily.map(d => `
+      <tr><td>${d.date}</td><td style="text-align:right">${kes(d.revenue)}</td><td style="text-align:right">${d.transactions}</td></tr>`).join('');
+    const html = `<!DOCTYPE html><html><head><title>Sales Report ${from} to ${to}</title>
+    <style>
+      body{font-family:sans-serif;font-size:12px;color:#111;padding:32px}
+      h1{font-size:20px;margin:0 0 4px}
+      .sub{color:#666;margin-bottom:24px}
+      .cards{display:flex;gap:16px;margin-bottom:24px}
+      .card{flex:1;border:1px solid #e5e5e5;border-radius:8px;padding:12px}
+      .card-label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.05em}
+      .card-value{font-size:22px;font-weight:900;color:#ea580c;margin-top:2px}
+      table{width:100%;border-collapse:collapse;margin-bottom:24px}
+      th{background:#f5f5f5;padding:8px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+      td{padding:7px 8px;border-bottom:1px solid #f0f0f0}
+      h2{font-size:13px;font-weight:700;margin:0 0 8px;text-transform:uppercase;letter-spacing:.05em;color:#555}
+      @media print{body{padding:0}}
+    </style></head><body>
+    <h1>Sales Report</h1>
+    <p class="sub">${from} &rarr; ${to}</p>
+    <div class="cards">
+      <div class="card"><div class="card-label">Total Revenue</div><div class="card-value">${kes(totalRevenue)}</div></div>
+      <div class="card"><div class="card-label">Transactions</div><div class="card-value">${transactionCount}</div></div>
+      <div class="card"><div class="card-label">Avg / Transaction</div><div class="card-value">${kes(avgTransaction)}</div></div>
+    </div>
+    ${topProducts.length > 0 ? `<h2>Top Products</h2>
+    <table><thead><tr><th>#</th><th>Product</th><th>Category</th><th style="text-align:right">Qty</th><th style="text-align:right">Revenue</th></tr></thead>
+    <tbody>${rows}</tbody></table>` : ''}
+    ${daily.length > 0 ? `<h2>Daily Breakdown</h2>
+    <table><thead><tr><th>Date</th><th style="text-align:right">Revenue</th><th style="text-align:right">Transactions</th></tr></thead>
+    <tbody>${dailyRows}</tbody></table>` : ''}
+    <script>window.onload=()=>{window.print()}</script>
+    </body></html>`;
+    const win = window.open('', '_blank');
+    if (!win) return;
+    win.document.write(html);
+    win.document.close();
+  };
 
   if (isLoading) return <div className="flex items-center justify-center h-48 text-sm text-muted-foreground">Loading sales data…</div>;
   if (!data) return null;
@@ -127,14 +178,25 @@ export function SalesReport({ from, to }: Props) {
 
       {/* Export */}
       <div className="flex justify-end">
-        <a
-          href={api.reports.exportSalesCsvUrl(from, to)}
-          download
-          className="flex items-center gap-2 px-4 py-2 rounded-lg border text-xs font-semibold hover:bg-muted transition-colors"
-        >
-          <Download className="h-3.5 w-3.5" />
-          Export CSV
-        </a>
+        {isAdmin ? (
+          <button
+            onClick={handleExportCsv}
+            disabled={!data || transactionCount === 0}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border text-xs font-semibold hover:bg-muted transition-colors disabled:opacity-50"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Export CSV
+          </button>
+        ) : (
+          <button
+            onClick={handleExportPDF}
+            disabled={!data || transactionCount === 0}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg border text-xs font-semibold hover:bg-muted transition-colors disabled:opacity-50"
+          >
+            <FileText className="h-3.5 w-3.5" />
+            Export PDF
+          </button>
+        )}
       </div>
     </div>
   );

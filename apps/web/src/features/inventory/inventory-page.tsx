@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { InventoryTable } from './components/inventory-table';
 import { CsvUploadDialog } from './components/csv-upload-dialog';
-import { Upload, AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Upload } from 'lucide-react';
 import { useProducts } from '@/hooks/use-products';
+import { useAuthStore } from '@/features/auth/store/use-auth-store';
 
 export function InventoryPage() {
-  const [csvOpen, setCsvOpen] = useState(false);
   const [showRecountOnly, setShowRecountOnly] = useState(false);
+  const [csvOpen, setCsvOpen] = useState(false);
   const { data: products = [] } = useProducts();
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPERADMIN';
 
   const recountItems = products.filter((p) => p.currentStock < 0);
 
@@ -20,6 +22,15 @@ export function InventoryPage() {
           <p className="text-sm text-muted-foreground">Manage products and stock levels</p>
         </div>
         <div className="flex items-center gap-2">
+          {isAdmin && (
+            <button
+              onClick={() => setCsvOpen(true)}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold hover:bg-muted transition-colors bg-card"
+            >
+              <Upload className="h-3.5 w-3.5" />
+              Import CSV
+            </button>
+          )}
           {recountItems.length > 0 && (
             <button
               onClick={() => setShowRecountOnly((v) => !v)}
@@ -33,10 +44,6 @@ export function InventoryPage() {
               {recountItems.length} Requires Recount
             </button>
           )}
-          <Button onClick={() => setCsvOpen(true)} className="gap-2">
-            <Upload className="h-4 w-4" />
-            Import CSV
-          </Button>
         </div>
       </div>
 
@@ -64,7 +71,7 @@ export function InventoryPage() {
         <InventoryTable recountFilter={showRecountOnly} />
       </div>
 
-      <CsvUploadDialog open={csvOpen} onClose={() => setCsvOpen(false)} />
+      {isAdmin && <CsvUploadDialog open={csvOpen} onClose={() => setCsvOpen(false)} />}
     </div>
   );
 }

@@ -25,11 +25,12 @@ shiftsRouter.get('/current', async (c) => {
 
 // Start a shift
 shiftsRouter.post('/', async (c) => {
-  const { storeId } = await getStoreContext(c);
-  if (!storeId) return c.json({ error: 'storeId required' }, 400);
-  const body = await c.req.json<{ userId: string; startingCash: number }>();
+  const ctx = await getStoreContext(c);
+  const body = await c.req.json<{ userId: string; startingCash: number; storeId?: string }>();
+  const resolvedStoreId = ctx.storeId ?? body.storeId ?? null;
+  if (!resolvedStoreId) return c.json({ error: 'storeId required' }, 400);
   const shift = await prisma.shift.create({
-    data: { storeId, userId: body.userId, startingCash: body.startingCash },
+    data: { storeId: resolvedStoreId, userId: body.userId, startingCash: body.startingCash },
     include: { cashLogs: true },
   });
   return c.json(shift, 201);

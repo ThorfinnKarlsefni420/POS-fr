@@ -14,14 +14,23 @@ superadminRouter.get('/dashboard', async (c) => {
   weekStart.setDate(weekStart.getDate() - 7);
   weekStart.setHours(0, 0, 0, 0);
 
-  const [stores, todayTransactions, weekTransactions, activeShifts] = await Promise.all([
-    prisma.store.findMany({ orderBy: { name: 'asc' } }),
+  // Always fetch stores — this must never be blocked by a metrics failure
+  const stores = await prisma.store.findMany({ orderBy: { name: 'asc' } });
+
+  // Metrics queries are best-effort: if any fail the stores still appear with zero stats
+  const [txTodayResult, txWeekResult, shiftsResult] = await Promise.allSettled([
     prisma.transaction.findMany({
       where: { status: 'COMPLETED', createdAt: { gte: todayStart, lte: todayEnd } },
       select: {
         storeId: true,
         totalAmount: true,
-        lineItems: { include: { item: { select: { name: true } } } },
+        lineItems: {
+          select: {
+            itemId: true,
+            quantity: true,
+            item: { select: { name: true } },
+          },
+        },
       },
     }),
     prisma.transaction.findMany({
@@ -33,6 +42,10 @@ superadminRouter.get('/dashboard', async (c) => {
       select: { storeId: true },
     }),
   ]);
+
+  const todayTransactions = txTodayResult.status === 'fulfilled' ? txTodayResult.value : [];
+  const weekTransactions  = txWeekResult.status  === 'fulfilled' ? txWeekResult.value  : [];
+  const activeShifts      = shiftsResult.status  === 'fulfilled' ? shiftsResult.value  : [];
 
   // Aggregate per store
   const storeStats = stores.map((store) => {

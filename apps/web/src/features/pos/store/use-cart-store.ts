@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { CartItem, CartTotals, PaymentType, Product } from '@/types/pos';
+import { CartItem, CartTotals, Product } from '@/types/pos';
 
 interface CartState {
   items: CartItem[];
@@ -9,8 +9,6 @@ interface CartState {
   setOverridePrice: (productId: string, price: number | undefined, reason?: string) => void;
   clearCart: () => void;
   totals: () => CartTotals;
-  lastPaymentType: PaymentType;
-  setLastPaymentType: (type: PaymentType) => void;
 }
 
 const getEffectivePrice = (item: CartItem) =>
@@ -18,7 +16,6 @@ const getEffectivePrice = (item: CartItem) =>
 
 export const useCartStore = create<CartState>((set, get) => ({
   items: [],
-  lastPaymentType: 'CASH',
 
   addItem: (product) => {
     set((state) => {
@@ -70,5 +67,4 @@ export const useCartStore = create<CartState>((set, get) => ({
     return { subtotal, taxAmount, total: subtotal + taxAmount };
   },
 
-  setLastPaymentType: (type) => set({ lastPaymentType: type }),
 }));

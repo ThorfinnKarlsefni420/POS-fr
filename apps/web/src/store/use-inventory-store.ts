@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Product } from '@/types/pos';
-import { MOCK_PRODUCTS } from '@/features/pos/mock-data';
 
 interface InventoryState {
   products: Product[];
@@ -16,7 +15,7 @@ interface InventoryState {
 export const useInventoryStore = create<InventoryState>()(
   persist(
     (set, get) => ({
-      products: MOCK_PRODUCTS,
+      products: [],
 
       setProducts: (products) => set({ products }),
 

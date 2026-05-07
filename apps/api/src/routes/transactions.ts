@@ -230,6 +230,7 @@ transactionsRouter.delete('/:id/void', async (c) => {
   const voided = await prisma.transaction.update({
     where: { id: txId },
     data: { status: 'VOIDED' },
+    include: { lineItems: { include: { item: true } }, user: { select: { id: true, name: true } } },
   });
 
   return c.json(voided);

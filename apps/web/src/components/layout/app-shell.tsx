@@ -8,11 +8,11 @@ import { getOfflineQueue } from '@/hooks/use-offline-sync';
 import { ShiftPanel } from '@/features/shifts/components/shift-panel';
 
 const NAV = [
-  { to: '/pos', icon: ShoppingCart, label: 'POS' },
-  { to: '/inventory', icon: Package, label: 'Inventory' },
-  { to: '/returns', icon: RotateCcw, label: 'Returns' },
-  { to: '/reports', icon: BarChart2, label: 'Reports' },
-  { to: '/admin', icon: Settings, label: 'Admin' },
+  { to: '/pos', icon: ShoppingCart, label: 'POS', adminOnly: false },
+  { to: '/inventory', icon: Package, label: 'Inventory', adminOnly: false },
+  { to: '/returns', icon: RotateCcw, label: 'Returns', adminOnly: false },
+  { to: '/reports', icon: BarChart2, label: 'Reports', adminOnly: false },
+  { to: '/admin', icon: Settings, label: 'Admin', adminOnly: true },
 ];
 
 const PAGE_TITLES: Record<string, string> = {
@@ -60,7 +60,7 @@ export function AppShell() {
 
         {/* Nav items */}
         <nav className="flex-1 p-2 space-y-0.5 mt-2">
-          {NAV.map(({ to, icon: Icon, label }) => (
+          {NAV.filter(({ adminOnly }) => !adminOnly || user?.role === 'ADMIN').map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
               to={to}

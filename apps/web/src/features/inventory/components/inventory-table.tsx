@@ -1,5 +1,6 @@
 import { useRef, useState, useMemo } from 'react';
 import { useProducts, useUpdateProduct, useDeleteProduct } from '@/hooks/use-products';
+import { useAuthStore } from '@/features/auth/store/use-auth-store';
 import { useSettingsStore } from '@/features/admin/store/use-settings-store';
 import { uploadToCloudinary } from '@/lib/cloudinary';
 import { api } from '@/lib/api';
@@ -27,6 +28,8 @@ export function InventoryTable({ recountFilter = false }: InventoryTableProps) {
   const { data: products = [], isLoading } = useProducts();
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPERADMIN';
   const { calcNomadBitePrice, serviceFeePercent, cloudinaryCloudName, cloudinaryUploadPreset } = useSettingsStore();
   const queryClient = useQueryClient();
 
@@ -153,13 +156,13 @@ export function InventoryTable({ recountFilter = false }: InventoryTableProps) {
               </th>
               <th className="text-center p-3 font-semibold text-xs text-muted-foreground uppercase tracking-wide">Stock</th>
               <th className="text-center p-3 font-semibold text-xs text-muted-foreground uppercase tracking-wide">Img</th>
-              <th className="p-3" />
+              {isAdmin && <th className="p-3" />}
             </tr>
           </thead>
           <tbody className="divide-y">
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={9} className="p-12 text-center text-muted-foreground">
+                <td colSpan={isAdmin ? 9 : 8} className="p-12 text-center text-muted-foreground">
                   <Package className="h-8 w-8 mx-auto mb-2 opacity-20" />
                   No items found
                 </td>
@@ -192,29 +195,30 @@ export function InventoryTable({ recountFilter = false }: InventoryTableProps) {
                     <Package className="h-4 w-4 text-muted-foreground/20 mx-auto" />
                   )}
                 </td>
-                <td className="p-3">
-                  <div className="flex gap-1 justify-end">
-                    <button
-                      onClick={() => { setAdjustItem(p); setAdjustDelta(''); setAdjustReason('RESTOCK'); setAdjustNote(''); }}
-                      title="Adjust stock"
-                      className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                    >
-                      <SlidersHorizontal className="h-3.5 w-3.5" />
-                    </button>
-                    <button onClick={() => openEdit(p)} className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
-                    <button
-                      onClick={() => deleteProduct.mutate(p.id)}
-                      className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground transition-colors"
-                      style={{ '--hover-color': 'var(--primary)' } as React.CSSProperties}
-                      onMouseEnter={e => (e.currentTarget.style.color = 'var(--primary)')}
-                      onMouseLeave={e => (e.currentTarget.style.color = '')}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </td>
+                {isAdmin && (
+                  <td className="p-3">
+                    <div className="flex gap-1 justify-end">
+                      <button
+                        onClick={() => { setAdjustItem(p); setAdjustDelta(''); setAdjustReason('RESTOCK'); setAdjustNote(''); }}
+                        title="Adjust stock"
+                        className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      >
+                        <SlidersHorizontal className="h-3.5 w-3.5" />
+                      </button>
+                      <button onClick={() => openEdit(p)} className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => deleteProduct.mutate(p.id)}
+                        className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground transition-colors"
+                        onMouseEnter={e => (e.currentTarget.style.color = 'var(--primary)')}
+                        onMouseLeave={e => (e.currentTarget.style.color = '')}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

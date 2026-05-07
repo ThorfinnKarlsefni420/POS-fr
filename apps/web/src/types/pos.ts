@@ -24,7 +24,7 @@ export interface CartItem extends Product {
   discountReason?: string;
 }
 
-export type PaymentType = 'CASH' | 'CARD' | 'MPESA';
+export type PaymentType = 'CASH';
 
 export interface CartTotals {
   subtotal: number;

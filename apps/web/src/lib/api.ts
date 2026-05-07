@@ -91,6 +91,10 @@ export const api = {
     list: () => req<ApiUser[]>('/users'),
     create: (data: { name: string; pin: string; role?: string; storeId?: string }) =>
       req<ApiUser>('/users', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: { name?: string; pin?: string; role?: string; storeId?: string | null }) =>
+      req<ApiUser>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    delete: (id: string) =>
+      req<{ ok: boolean }>(`/users/${id}`, { method: 'DELETE' }),
     verify: (userId: string, pin: string) =>
       req<ApiUser>('/users/verify', { method: 'POST', body: JSON.stringify({ userId, pin }) }),
     verifyAdmin: (pin: string) =>
@@ -99,8 +103,8 @@ export const api = {
   shifts: {
     current: (userId?: string | null) =>
       req<ApiShift | null>(`/shifts/current${userId ? `?userId=${userId}` : ''}`),
-    start: (userId: string, startingCash: number) =>
-      req<ApiShift>('/shifts', { method: 'POST', body: JSON.stringify({ userId, startingCash }) }),
+    start: (userId: string, startingCash: number, storeId?: string) =>
+      req<ApiShift>('/shifts', { method: 'POST', body: JSON.stringify({ userId, startingCash, storeId }) }),
     addCashLog: (shiftId: string, data: { amount: number; type: 'PAY_IN' | 'PAY_OUT'; reason: string }) =>
       req<{ id: string }>(`/shifts/${shiftId}/cashlog`, { method: 'POST', body: JSON.stringify(data) }),
     close: (shiftId: string, actualCash: number) =>
@@ -131,7 +135,21 @@ export const api = {
     sales: (from: string, to: string) => req<SalesReport>(`/reports/sales?from=${from}&to=${to}`),
     shifts: (from: string, to: string) => req<ShiftsReport>(`/reports/shifts?from=${from}&to=${to}`),
     inventory: () => req<InventoryReport>('/reports/inventory'),
-    exportSalesCsvUrl: (from: string, to: string) => `${BASE}/reports/export/sales?from=${from}&to=${to}`,
+    exportCsv: async (endpoint: string, filename: string) => {
+      const user = useAuthStore.getState().user;
+      const headers: Record<string, string> = {};
+      if (user?.id) headers['X-User-Id'] = user.id;
+      if (user?.storeId) headers['X-Store-Id'] = user.storeId;
+      const res = await fetch(`${BASE}${endpoint}`, { headers });
+      if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    },
   },
   transactions: {
     create: (payload: CreateTransactionPayload) =>

@@ -8,7 +8,8 @@
     "dev": "node --env-file=.env --import tsx/esm --watch src/index.ts",
     "build": "esbuild src/index.ts --bundle --platform=node --format=cjs --outfile=dist/index.cjs --external:@prisma/client --external:pg --external:@prisma/adapter-pg",
     "start": "node dist/index.cjs",
-    "migrate": "prisma migrate deploy --schema=../../packages/database/prisma/schema.prisma"
+    "migrate": "prisma migrate deploy --schema=../../packages/database/prisma/schema.prisma",
+    "test": "node --env-file=.env --import tsx/esm --test tests/integration.test.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
