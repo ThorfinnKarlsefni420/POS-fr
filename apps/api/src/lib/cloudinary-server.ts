@@ -24,7 +24,7 @@ export async function uploadUrlToCloudinary(
   // Create signature
   const paramString = Object.keys(params)
     .sort()
-    .map(key => \`\${key}=\${params[key]}\`)
+    .map(key => `${key}=${params[key]}`)
     .join('&') + apiSecret;
   
   const signature = crypto.createHash('sha1').update(paramString).digest('hex');
@@ -37,20 +37,20 @@ export async function uploadUrlToCloudinary(
   if (publicId) formData.append('public_id', publicId);
 
   try {
-    const response = await fetch(\`https://api.cloudinary.com/v1_1/\${cloudName}/image/upload\`, {
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
       method: 'POST',
       body: formData,
     });
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(\`Cloudinary error: \${errorData.error?.message || response.statusText}\`);
+      throw new Error(`Cloudinary error: ${errorData.error?.message || response.statusText}`);
     }
 
     const data = await response.json();
     return data.secure_url;
   } catch (error) {
-    console.error(\`Error uploading to Cloudinary from URL "\${imageUrl}":\`, error);
+    console.error(`Error uploading to Cloudinary from URL "${imageUrl}":`, error);
     return null;
   }
 }

@@ -40,5 +40,5 @@ app.get('/api/health', (c) => c.json({ status: 'ok', db: 'postgres', port: 3001 
 
 const PORT = Number(process.env.PORT ?? 3001);
 serve({ fetch: app.fetch, port: PORT }, () => {
-  console.log(\`\\n  NomadBite API running on http://localhost:\${PORT}\\n\`);
+  console.log(`\n  NomadBite API running on http://localhost:${PORT}\n`);
 });

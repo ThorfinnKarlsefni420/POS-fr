@@ -35,11 +35,11 @@ export function InventoryPage() {
           {recountItems.length > 0 && (
             <button
               onClick={() => setShowRecountOnly((v) => !v)}
-              className={\`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-bold transition-colors \${
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-bold transition-colors ${
                 showRecountOnly
                   ? 'bg-red-500/10 border-red-500/40 text-red-600'
                   : 'bg-card border-border text-muted-foreground hover:bg-muted'
-              }\`}
+              }`}
             >
               <AlertTriangle className="h-3.5 w-3.5" />
               {recountItems.length} Requires Recount

@@ -67,7 +67,7 @@ imageSyncRouter.post('/start', async (c) => {
         const imageUrl = await searchProductImage(item.name);
         
         if (imageUrl) {
-          const cloudinaryUrl = await uploadUrlToCloudinary(imageUrl, \`item_\${item.id}\`);
+          const cloudinaryUrl = await uploadUrlToCloudinary(imageUrl, `item_${item.id}`);
           
           if (cloudinaryUrl) {
             await prisma.item.update({
@@ -82,7 +82,7 @@ imageSyncRouter.post('/start', async (c) => {
           syncStatus[storeId].failed++;
         }
       } catch (error) {
-        console.error(\`Failed to sync image for \${item.name}:\`, error);
+        console.error(`Failed to sync image for ${item.name}:`, error);
         syncStatus[storeId].failed++;
       }
 
