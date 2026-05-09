@@ -1,6 +1,6 @@
 import { Product } from '@/types/pos';
 
-export const MOCK_PRODUCTS: Product[] = [
+const RAW: Omit<Product, 'sellingPrice'>[] = [
   { id: '1', sku: 'B-001', category: 'Beverages', subCategory: 'Tea', name: 'Ketepa Tea', unit: '500G', boxQty: '0', costPrice: 220, nomadBitePrice: 231, taxRate: 0, isFractional: false, currentStock: 50, manufacturingDate: '2025-01-01', expiryDate: '2028-01-01', imageUrl: 'https://images.unsplash.com/photo-1594631252845-29fc4586c56b?auto=format&fit=crop&q=80&w=200&h=200' },
   { id: '2', sku: 'BC-002', category: 'Breakfast & Cereals', subCategory: 'Spreads', name: 'Blue Band 500G', unit: '500G', boxQty: '0', costPrice: 239, nomadBitePrice: 250.95, taxRate: 0, isFractional: false, currentStock: 50, manufacturingDate: '2024-09-13', expiryDate: '2025-09-13', imageUrl: 'https://images.unsplash.com/photo-1589985270826-4b7bb135bc9d?auto=format&fit=crop&q=80&w=200&h=200' },
   { id: '3', sku: 'BC-003', category: 'Breakfast & Cereals', subCategory: 'Spreads', name: 'Blue Band 1Kg Box', unit: '1KG', boxQty: '1', costPrice: 5600, nomadBitePrice: 5880, taxRate: 0, isFractional: false, currentStock: 10, manufacturingDate: '2024-09-24', expiryDate: '2025-09-24' },
@@ -80,3 +80,5 @@ export const MOCK_PRODUCTS: Product[] = [
   { id: '77', sku: 'BS-077', category: 'Baby Supplies', subCategory: 'Pampers', name: 'Pampers All Sizes', unit: 'pack', boxQty: '1', costPrice: 1583.3, nomadBitePrice: 1662.47, taxRate: 0, isFractional: false, currentStock: 20 },
   { id: '78', sku: 'BS-078', category: 'Baby Supplies', subCategory: 'Pampers', name: 'Baby Joy All Sizes', unit: 'pack', boxQty: '', costPrice: 0, nomadBitePrice: 0, taxRate: 0, isFractional: false, currentStock: 0 },
 ];
+
+export const MOCK_PRODUCTS: Product[] = RAW.map((p) => ({ ...p, sellingPrice: p.nomadBitePrice }));

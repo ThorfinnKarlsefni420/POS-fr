@@ -2,13 +2,16 @@ import { useState } from 'react';
 import { InventoryTable } from './components/inventory-table';
 import { CsvUploadDialog } from './components/csv-upload-dialog';
 import { ImageSyncPanel } from './components/image-sync-panel';
-import { AlertTriangle, Upload } from 'lucide-react';
+import { LocalImageMatcher } from './components/local-image-matcher';
+import { AlertTriangle, Upload, Plus, ImageUp } from 'lucide-react';
 import { useProducts } from '@/hooks/use-products';
 import { useAuthStore } from '@/features/auth/store/use-auth-store';
 
 export function InventoryPage() {
   const [showRecountOnly, setShowRecountOnly] = useState(false);
   const [csvOpen, setCsvOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [matcherOpen, setMatcherOpen] = useState(false);
   const { data: products = [] } = useProducts();
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPERADMIN';
@@ -24,13 +27,30 @@ export function InventoryPage() {
         </div>
         <div className="flex items-center gap-2">
           {isAdmin && (
-            <button
-              onClick={() => setCsvOpen(true)}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold hover:bg-muted transition-colors bg-card"
-            >
-              <Upload className="h-3.5 w-3.5" />
-              Import CSV
-            </button>
+            <>
+              <button
+                onClick={() => setAddOpen(true)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-colors"
+                style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                Add Item
+              </button>
+              <button
+                onClick={() => setMatcherOpen(true)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold hover:bg-muted transition-colors bg-card"
+              >
+                <ImageUp className="h-3.5 w-3.5" />
+                Match Images
+              </button>
+              <button
+                onClick={() => setCsvOpen(true)}
+                className="flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold hover:bg-muted transition-colors bg-card"
+              >
+                <Upload className="h-3.5 w-3.5" />
+                Import CSV
+              </button>
+            </>
           )}
           {recountItems.length > 0 && (
             <button
@@ -71,10 +91,11 @@ export function InventoryPage() {
       )}
 
       <div className="flex-1 overflow-hidden flex flex-col">
-        <InventoryTable recountFilter={showRecountOnly} />
+        <InventoryTable recountFilter={showRecountOnly} addOpen={addOpen} onAddClose={() => setAddOpen(false)} />
       </div>
 
       {isAdmin && <CsvUploadDialog open={csvOpen} onClose={() => setCsvOpen(false)} />}
+      {isAdmin && <LocalImageMatcher open={matcherOpen} onClose={() => setMatcherOpen(false)} />}
     </div>
   );
 }

@@ -22,15 +22,17 @@ const ADJUST_REASONS = [
 
 interface InventoryTableProps {
   recountFilter?: boolean;
+  addOpen?: boolean;
+  onAddClose?: () => void;
 }
 
-export function InventoryTable({ recountFilter = false }: InventoryTableProps) {
+export function InventoryTable({ recountFilter = false, addOpen = false, onAddClose }: InventoryTableProps) {
   const { data: products = [], isLoading } = useProducts();
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPERADMIN';
-  const { calcNomadBitePrice, serviceFeePercent, cloudinaryCloudName, cloudinaryUploadPreset } = useSettingsStore();
+  const { calcNomadBitePrice, cloudinaryCloudName, cloudinaryUploadPreset } = useSettingsStore();
   const queryClient = useQueryClient();
 
   const [search, setSearch] = useState('');
@@ -39,6 +41,44 @@ export function InventoryTable({ recountFilter = false }: InventoryTableProps) {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadError, setUploadError] = useState('');
   const imageFileRef = useRef<HTMLInputElement>(null);
+
+  const EMPTY_FORM = { name: '', sku: '', category: '', subCategory: '', unit: '', costPrice: 0, sellingPrice: 0, nomadBitePrice: 0, taxRate: 0, currentStock: 0, imageUrl: '' };
+  const [addForm, setAddForm] = useState<typeof EMPTY_FORM>(EMPTY_FORM);
+  const [addSaving, setAddSaving] = useState(false);
+  const addImageRef = useRef<HTMLInputElement>(null);
+  const [addUploadingImage, setAddUploadingImage] = useState(false);
+  const [addUploadError, setAddUploadError] = useState('');
+
+  const handleAddImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAddUploadingImage(true);
+    setAddUploadError('');
+    try {
+      const result = await uploadToCloudinary(file, cloudinaryCloudName, cloudinaryUploadPreset, addForm.sku || 'new-item');
+      setAddForm((f) => ({ ...f, imageUrl: result.secure_url }));
+    } catch (err) {
+      setAddUploadError((err as Error).message);
+    } finally {
+      setAddUploadingImage(false);
+      if (addImageRef.current) addImageRef.current.value = '';
+    }
+  };
+
+  const handleAddSave = async () => {
+    if (!addForm.name.trim() || !addForm.sku.trim()) return;
+    setAddSaving(true);
+    try {
+      await api.products.create(addForm);
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      setAddForm(EMPTY_FORM);
+      onAddClose?.();
+    } catch {
+      alert('Failed to create item — check that the SKU is unique.');
+    } finally {
+      setAddSaving(false);
+    }
+  };
 
   // Adjust stock dialog state (Phase 2.1)
   const [adjustItem, setAdjustItem] = useState<Product | null>(null);
@@ -149,11 +189,8 @@ export function InventoryTable({ recountFilter = false }: InventoryTableProps) {
               <th className="text-left p-3 font-semibold text-xs text-muted-foreground uppercase tracking-wide">Category</th>
               <th className="text-left p-3 font-semibold text-xs text-muted-foreground uppercase tracking-wide">SKU</th>
               <th className="text-left p-3 font-semibold text-xs text-muted-foreground uppercase tracking-wide">Unit</th>
-              <th className="text-right p-3 font-semibold text-xs text-muted-foreground uppercase tracking-wide">Cost (KES)</th>
-              <th className="text-right p-3 font-semibold text-xs text-muted-foreground uppercase tracking-wide">
-                Price (KES)
-                <span className="ml-1 normal-case font-normal" style={{ color: 'var(--primary)' }}>+{serviceFeePercent}%</span>
-              </th>
+              <th className="text-right p-3 font-semibold text-xs text-muted-foreground uppercase tracking-wide">Buying Price</th>
+              <th className="text-right p-3 font-semibold text-xs text-muted-foreground uppercase tracking-wide">Selling Price</th>
               <th className="text-center p-3 font-semibold text-xs text-muted-foreground uppercase tracking-wide">Stock</th>
               <th className="text-center p-3 font-semibold text-xs text-muted-foreground uppercase tracking-wide">Img</th>
               {isAdmin && <th className="p-3" />}
@@ -180,8 +217,8 @@ export function InventoryTable({ recountFilter = false }: InventoryTableProps) {
                 <td className="p-3 text-right text-xs text-muted-foreground">
                   {p.costPrice > 0 ? Number(p.costPrice).toLocaleString() : '—'}
                 </td>
-                <td className="p-3 text-right font-bold text-sm" style={{ color: p.nomadBitePrice > 0 ? 'var(--primary)' : 'var(--muted-foreground)' }}>
-                  {p.nomadBitePrice > 0 ? Number(p.nomadBitePrice).toLocaleString() : '—'}
+                <td className="p-3 text-right font-bold text-sm" style={{ color: 'var(--primary)' }}>
+                  {p.sellingPrice > 0 ? Number(p.sellingPrice).toLocaleString() : '—'}
                 </td>
                 <td className="p-3 text-center">
                   <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={stockColor(p.currentStock)}>
@@ -239,17 +276,17 @@ export function InventoryTable({ recountFilter = false }: InventoryTableProps) {
             <div className="space-y-1.5"><Label className="text-xs font-semibold">Category</Label><Input {...field('category')} /></div>
             <div className="space-y-1.5"><Label className="text-xs font-semibold">Sub-Category</Label><Input {...field('subCategory')} /></div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Cost Price (KES)</Label>
+              <Label className="text-xs font-semibold">Buying Price (KES)</Label>
               <Input type="number" {...field('costPrice')}
                 onChange={(e) => {
                   const cost = Number(e.target.value);
-                  setEditForm((f) => ({ ...f, costPrice: cost, nomadBitePrice: calcNomadBitePrice(cost) }));
+                  setEditForm((f) => ({ ...f, costPrice: cost, sellingPrice: calcNomadBitePrice(cost) }));
                 }}
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold" style={{ color: 'var(--primary)' }}>NomadBite Price (KES)</Label>
-              <Input type="number" {...field('nomadBitePrice')} />
+              <Label className="text-xs font-semibold" style={{ color: 'var(--primary)' }}>Selling Price (KES)</Label>
+              <Input type="number" {...field('sellingPrice')} />
             </div>
             <div className="space-y-1.5"><Label className="text-xs font-semibold">Stock</Label><Input type="number" {...field('currentStock')} /></div>
             <div className="space-y-1.5"><Label className="text-xs font-semibold">Tax Rate (%)</Label><Input type="number" {...field('taxRate')} /></div>
@@ -285,6 +322,88 @@ export function InventoryTable({ recountFilter = false }: InventoryTableProps) {
               style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
             >
               Save Changes
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Item dialog */}
+      <Dialog open={addOpen} onOpenChange={(o) => { if (!o) { setAddForm(EMPTY_FORM); setAddUploadError(''); onAddClose?.(); } }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle className="font-black">Add New Item</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-4 pt-2">
+            <div className="col-span-2 space-y-1.5">
+              <Label className="text-xs font-semibold">Name <span className="text-destructive">*</span></Label>
+              <Input placeholder="e.g. Omo Detergent 1kg" value={addForm.name} onChange={(e) => setAddForm((f) => ({ ...f, name: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">SKU <span className="text-destructive">*</span></Label>
+              <Input placeholder="e.g. OMO-1KG" value={addForm.sku} onChange={(e) => setAddForm((f) => ({ ...f, sku: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Unit</Label>
+              <Input placeholder="e.g. pcs, kg, litre" value={addForm.unit} onChange={(e) => setAddForm((f) => ({ ...f, unit: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Category</Label>
+              <Input placeholder="e.g. Detergents" value={addForm.category} onChange={(e) => setAddForm((f) => ({ ...f, category: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Sub-Category</Label>
+              <Input placeholder="e.g. Laundry" value={addForm.subCategory} onChange={(e) => setAddForm((f) => ({ ...f, subCategory: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Buying Price (KES)</Label>
+              <Input type="number" min="0" value={addForm.costPrice || ''} onChange={(e) => {
+                const cost = Number(e.target.value);
+                setAddForm((f) => ({ ...f, costPrice: cost, sellingPrice: calcNomadBitePrice(cost) }));
+              }} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold" style={{ color: 'var(--primary)' }}>Selling Price (KES)</Label>
+              <Input type="number" min="0" value={addForm.sellingPrice || ''} onChange={(e) => setAddForm((f) => ({ ...f, sellingPrice: Number(e.target.value) }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Initial Stock</Label>
+              <Input type="number" value={addForm.currentStock || ''} onChange={(e) => setAddForm((f) => ({ ...f, currentStock: Number(e.target.value) }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Tax Rate (%)</Label>
+              <Input type="number" min="0" max="100" value={addForm.taxRate || ''} onChange={(e) => setAddForm((f) => ({ ...f, taxRate: Number(e.target.value) }))} />
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <Label className="text-xs font-semibold">Image</Label>
+              <div className="flex gap-2">
+                <Input placeholder="https://… or leave blank" value={addForm.imageUrl} onChange={(e) => setAddForm((f) => ({ ...f, imageUrl: e.target.value }))} className="flex-1" />
+                <button
+                  type="button"
+                  onClick={() => addImageRef.current?.click()}
+                  disabled={addUploadingImage}
+                  className="shrink-0 h-9 px-3 rounded-lg border text-xs font-semibold flex items-center gap-1.5 hover:bg-muted transition-colors disabled:opacity-60"
+                >
+                  {addUploadingImage ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageUp className="h-3.5 w-3.5" />}
+                  {addUploadingImage ? 'Uploading…' : 'Upload'}
+                </button>
+                <input ref={addImageRef} type="file" accept="image/*" className="hidden" onChange={handleAddImageUpload} />
+              </div>
+              {addUploadError && <p className="text-xs text-destructive">{addUploadError}</p>}
+              {addForm.imageUrl && (
+                <img src={addForm.imageUrl} alt="preview" className="h-16 w-16 object-cover rounded-lg mt-1 border" onError={(e) => { (e.currentTarget.style.display = 'none'); }} />
+              )}
+            </div>
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button onClick={() => { setAddForm(EMPTY_FORM); setAddUploadError(''); onAddClose?.(); }} className="flex-1 py-2.5 rounded-lg border font-semibold text-sm hover:bg-muted transition-colors">
+              Cancel
+            </button>
+            <button
+              onClick={handleAddSave}
+              disabled={addSaving || !addForm.name.trim() || !addForm.sku.trim()}
+              className="flex-1 py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+              style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
+            >
+              {addSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+              Add Item
             </button>
           </div>
         </DialogContent>

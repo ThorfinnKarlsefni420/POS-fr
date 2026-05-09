@@ -2,6 +2,7 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
+import { warmUpDb } from './lib/prisma';
 import { productsRouter } from './routes/products';
 import { settingsRouter } from './routes/settings';
 import { transactionsRouter } from './routes/transactions';
@@ -38,7 +39,15 @@ app.route('/api/image-sync', imageSyncRouter);
 
 app.get('/api/health', (c) => c.json({ status: 'ok', db: 'postgres', port: 3001 }));
 
+app.notFound((c) => c.json({ error: 'Route not found' }, 404));
+
+app.onError((err, c) => {
+  console.error('[API Error]', c.req.url, err);
+  return c.json({ error: err.message ?? 'Internal server error' }, 500);
+});
+
 const PORT = Number(process.env.PORT ?? 3001);
 serve({ fetch: app.fetch, port: PORT }, () => {
   console.log(`\n  NomadBite API running on http://localhost:${PORT}\n`);
+  warmUpDb();
 });

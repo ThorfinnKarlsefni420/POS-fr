@@ -2,20 +2,48 @@ import { useAuthStore } from '@/features/auth/store/use-auth-store';
 
 const BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3001/api';
 
-async function req<T>(path: string, init?: RequestInit): Promise<T> {
+async function buildHeaders(overrideStoreId?: string) {
   const user = useAuthStore.getState().user;
-  const userId = user?.id;
-  const storeId = user?.role === 'SUPERADMIN' ? undefined : user?.storeId;
+  return {
+    'Content-Type': 'application/json',
+    ...(user?.id ? { 'X-User-Id': user.id } : {}),
+    ...(overrideStoreId
+      ? { 'X-Store-Id': overrideStoreId }
+      : user?.role !== 'SUPERADMIN' && user?.storeId
+        ? { 'X-Store-Id': user.storeId }
+        : {}),
+  };
+}
 
+async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(userId ? { 'X-User-Id': userId } : {}),
-      ...(storeId ? { 'X-Store-Id': storeId } : {}),
-    },
+    headers: await buildHeaders(),
     ...init,
   });
-  if (!res.ok) throw new Error(`API ${res.status}: ${path}`);
+  if (!res.ok) {
+    let msg = `API ${res.status}: ${path}`;
+    try {
+      const body = await res.clone().json();
+      if (body?.error) msg = body.error;
+    } catch { /* ignore parse errors */ }
+    throw new Error(msg);
+  }
+  return res.json() as Promise<T>;
+}
+
+async function reqForStore<T>(path: string, storeId: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    headers: await buildHeaders(storeId),
+    ...init,
+  });
+  if (!res.ok) {
+    let msg = `API ${res.status}: ${path}`;
+    try {
+      const body = await res.clone().json();
+      if (body?.error) msg = body.error;
+    } catch { /* ignore parse errors */ }
+    throw new Error(msg);
+  }
   return res.json() as Promise<T>;
 }
 
@@ -112,6 +140,8 @@ export const api = {
   },
   products: {
     list: () => req<ApiItem[]>('/products'),
+    create: (data: Partial<ApiItem>) =>
+      req<ApiItem>('/products', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: Partial<ApiItem>) =>
       req<ApiItem>(`/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id: string) => req<{ ok: boolean }>(`/products/${id}`, { method: 'DELETE' }),
@@ -170,6 +200,30 @@ export const api = {
   },
   superadmin: {
     dashboard: () => req<SuperAdminDashboard>('/superadmin/dashboard'),
+    inventory: (params?: { storeId?: string; search?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.storeId) qs.set('storeId', params.storeId);
+      if (params?.search) qs.set('search', params.search);
+      const q = qs.toString();
+      return req<SuperAdminInventoryItem[]>(`/superadmin/inventory${q ? `?${q}` : ''}`);
+    },
+    getGlobalSettings: () => req<GlobalSettings>('/superadmin/settings'),
+    saveGlobalSettings: (data: Partial<GlobalSettings>) =>
+      req<{ ok: boolean }>('/superadmin/settings', { method: 'POST', body: JSON.stringify(data) }),
+    recalculatePrices: () =>
+      req<{ updated: number; markupPercent: number }>('/superadmin/recalculate-prices', { method: 'POST' }),
+    randomizeSellingPrices: () =>
+      req<{ updated: number }>('/superadmin/randomize-selling-prices', { method: 'POST' }),
+    importForStore: (storeId: string, products: Partial<ApiItem>[], replace: boolean) =>
+      reqForStore<{ succeeded: number; failed: number }>('/products/import', storeId, {
+        method: 'POST',
+        body: JSON.stringify({ products, replace }),
+      }),
+    broadcastImage: (name: string, imageUrl: string) =>
+      req<{ updated: number }>('/superadmin/broadcast-image', {
+        method: 'POST',
+        body: JSON.stringify({ name, imageUrl }),
+      }),
   },
 };
 
@@ -182,6 +236,7 @@ export interface ApiItem {
   unit: string;
   boxQty: string;
   costPrice: string | number;
+  sellingPrice: string | number;
   nomadBitePrice: string | number;
   taxRate: string | number;
   isFractional: boolean;
@@ -191,6 +246,30 @@ export interface ApiItem {
   imageUrl?: string;
   manufacturingDate?: string;
   expiryDate?: string;
+}
+
+export interface SuperAdminInventoryItem {
+  id: string;
+  name: string;
+  sku: string;
+  category: string;
+  subCategory: string;
+  unit: string;
+  costPrice: number;
+  sellingPrice: number;
+  nomadBitePrice: number;
+  taxRate: number;
+  currentStock: number;
+  storeId: string;
+  storeName: string;
+  imageUrl?: string | null;
+  storeCount: number;
+}
+
+export interface GlobalSettings {
+  globalMarkupPercent: number;
+  cloudinaryCloudName: string;
+  cloudinaryUploadPreset: string;
 }
 
 export interface ApiSettings {
@@ -297,6 +376,7 @@ export function apiItemToProduct(item: ApiItem) {
     unit: item.unit,
     boxQty: item.boxQty,
     costPrice: Number(item.costPrice),
+    sellingPrice: Number(item.sellingPrice),
     nomadBitePrice: Number(item.nomadBitePrice),
     taxRate: Number(item.taxRate),
     isFractional: item.isFractional,

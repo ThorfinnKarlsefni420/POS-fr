@@ -30,8 +30,8 @@ export function CheckoutModal({ open, onClose, total }: Props) {
     items: items.map((item) => ({
       id: item.id,
       quantity: item.quantity,
-      originalPrice: item.nomadBitePrice,
-      soldPrice: item.overridePrice ?? item.nomadBitePrice,
+      originalPrice: item.sellingPrice,
+      soldPrice: item.overridePrice ?? item.sellingPrice,
       discountReason: item.discountReason,
     })),
     totalAmount: total,

@@ -26,18 +26,18 @@ function AppRoutes() {
 
   if (user.role === 'SUPERADMIN') {
     return (
-      <BrowserRouter>
+      <>
         <Routes>
           <Route path="/superadmin" element={<SuperAdminPage />} />
           <Route path="*" element={<Navigate to="/superadmin" replace />} />
         </Routes>
         <PinGate />
-      </BrowserRouter>
+      </>
     );
   }
 
   return (
-    <BrowserRouter>
+    <>
       <Routes>
         <Route element={<AppShell />}>
           <Route index element={<Navigate to="/pos" replace />} />
@@ -45,18 +45,21 @@ function AppRoutes() {
           <Route path="/inventory" element={<InventoryPage />} />
           <Route path="/returns" element={<ReturnsPage />} />
           <Route path="/reports" element={<ReportsPage />} />
-          <Route path="/admin" element={user?.role === 'CASHIER' ? <Navigate to="/pos" replace /> : <AdminPage />} />
+          <Route path="/admin" element={user.role === 'CASHIER' ? <Navigate to="/pos" replace /> : <AdminPage />} />
+          <Route path="*" element={<Navigate to="/pos" replace />} />
         </Route>
       </Routes>
       <PinGate />
-    </BrowserRouter>
+    </>
   );
 }
 
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AppRoutes />
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
     </QueryClientProvider>
   );
 }

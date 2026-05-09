@@ -7,6 +7,7 @@ export interface Product {
   unit: string;
   boxQty: string;
   costPrice: number;
+  sellingPrice: number;
   nomadBitePrice: number;
   taxRate: number;
   isFractional: boolean;

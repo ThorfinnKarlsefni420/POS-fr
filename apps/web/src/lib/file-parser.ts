@@ -101,12 +101,15 @@ function rowsToProducts(rows: Row[], serviceFeePercent: number): ParseResult {
     }
 
     const costPrice = parsePrice(cols.priceCol ? row[cols.priceCol] : undefined);
-    const sellingPrice = parsePrice(cols.sellingPriceCol ? row[cols.sellingPriceCol] : undefined);
-    const nomadBitePrice = sellingPrice > 0
-      ? sellingPrice
+    // Vendor's selling price: explicit column, or auto-calculated from buying price + service fee
+    const rawSellingPrice = parsePrice(cols.sellingPriceCol ? row[cols.sellingPriceCol] : undefined);
+    const sellingPrice = rawSellingPrice > 0
+      ? rawSellingPrice
       : costPrice > 0
         ? Number((costPrice * (1 + serviceFeePercent / 100)).toFixed(2))
         : 0;
+    // NomadBite price is set by superadmin markup, not via CSV import
+    const nomadBitePrice = 0;
 
     const rawVat = cols.vatCol ? row[cols.vatCol]?.toString().trim() : undefined;
     const taxRate = rawVat ? parsePrice(rawVat) : 0;
@@ -128,6 +131,7 @@ function rowsToProducts(rows: Row[], serviceFeePercent: number): ParseResult {
       unit: cols.unitCol ? row[cols.unitCol]?.toString().trim() ?? '' : '',
       boxQty: '',
       costPrice,
+      sellingPrice,
       nomadBitePrice,
       taxRate,
       isFractional: false,

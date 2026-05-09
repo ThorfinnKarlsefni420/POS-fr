@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
 import { useAuthStore, AuthUser } from '../store/use-auth-store';
-import { Delete, Loader2, ShieldCheck, UserCog, User } from 'lucide-react';
+import { Loader2, LogIn } from 'lucide-react';
 import { useSettingsStore } from '@/features/admin/store/use-settings-store';
 
 interface UserCard {
@@ -10,43 +10,45 @@ interface UserCard {
   role: 'SUPERADMIN' | 'ADMIN' | 'CASHIER';
 }
 
-const ROLE_META = {
-  SUPERADMIN: { label: 'Super Admin', color: '#7c3aed', bg: 'rgba(124,58,237,0.12)', Icon: ShieldCheck },
-  ADMIN:      { label: 'Admin',       color: '#ea580c', bg: 'rgba(234,88,12,0.12)',  Icon: UserCog },
-  CASHIER:    { label: 'Cashier',     color: '#0284c7', bg: 'rgba(2,132,199,0.12)',  Icon: User },
-};
-
-function initials(name: string) {
-  return name.split(' ').map((w) => w[0]).join('').toUpperCase().slice(0, 2);
-}
 
 export function LoginPage() {
   const { setUser, setShiftId } = useAuthStore();
   const storeName = useSettingsStore((s) => s.storeName);
 
-  const [users, setUsers] = useState<UserCard[]>([]);
+  const [users, setUsers]               = useState<UserCard[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(true);
-  const [selectedUser, setSelectedUser] = useState<UserCard | null>(null);
-  const [pin, setPin] = useState('');
-  const [error, setError] = useState('');
-  const [verifying, setVerifying] = useState(false);
-  const [startingShift, setStartingShift] = useState(false);
+  const [username, setUsername]         = useState('');
+  const [password, setPassword]         = useState('');
+  const [error, setError]               = useState('');
+  const [verifying, setVerifying]       = useState(false);
+
+  const [freeType, setFreeType]                   = useState(false);
+  const [logoClicks, setLogoClicks]               = useState(0);
+  const logoClickTimer                            = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleLogoClick = () => {
+    const next = logoClicks + 1;
+    if (next >= 3) { setFreeType((f) => !f); setUsername(''); setLogoClicks(0); return; }
+    setLogoClicks(next);
+    if (logoClickTimer.current) clearTimeout(logoClickTimer.current);
+    logoClickTimer.current = setTimeout(() => setLogoClicks(0), 600);
+  };
+
+  const [startingShift, setStartingShift]         = useState(false);
   const [startingCashInput, setStartingCashInput] = useState('');
-  const [needsShift, setNeedsShift] = useState(false);
+  const [needsShift, setNeedsShift]   = useState(false);
   const [pendingUser, setPendingUser] = useState<AuthUser | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
         const list = await api.users.list();
-        // Seed default admin if the database is empty
         if (list.length === 0) {
           const created = await api.users.create({ name: 'Admin', pin: '0000', role: 'ADMIN' });
           setUsers([{ id: created.id, name: created.name, role: created.role as UserCard['role'] }]);
           setLoadingUsers(false);
           return;
         }
-        // Ensure a SUPERADMIN always exists — recreate if deleted
         if (!list.some((u) => u.role === 'SUPERADMIN')) {
           const sa = await api.users.create({ name: 'Super Admin', pin: '0000', role: 'SUPERADMIN' });
           setUsers([...list, { id: sa.id, name: sa.name, role: 'SUPERADMIN' }] as UserCard[]);
@@ -62,34 +64,20 @@ export function LoginPage() {
     })();
   }, []);
 
-  const numpad = (d: string) => {
-    if (pin.length < 4) setPin((p) => p + d);
-    setError('');
-  };
-  const backspace = () => setPin((p) => p.slice(0, -1));
+  const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, '');
 
-  useEffect(() => {
-    if (!selectedUser) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key >= '0' && e.key <= '9') numpad(e.key);
-      else if (e.key === 'Backspace') backspace();
-      else if (e.key === 'Enter') handleVerify();
-      else if (e.key === 'Escape') { setSelectedUser(null); setPin(''); setError(''); }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [selectedUser, pin]);
+  const handleLogin = async (e?: React.FormEvent) => {
+    e?.preventDefault();
 
-  const handleVerify = async () => {
-    if (pin.length !== 4 || !selectedUser) return;
+    if (!username.trim() || password.length < 4) return;
+    const matched = users.find((u) => normalize(u.name) === normalize(username.trim()));
+    if (!matched) { setError('User not found.'); return; }
+
     setVerifying(true);
     setError('');
     try {
-      const verified = await api.users.verify(selectedUser.id, pin) as AuthUser;
-      if (verified.role === 'SUPERADMIN') {
-        setUser(verified);
-        return;
-      }
+      const verified = await api.users.verify(matched.id, password) as AuthUser;
+      if (verified.role === 'SUPERADMIN') { setUser(verified); return; }
       const shift = await api.shifts.current(verified.id);
       if (shift) {
         setUser(verified);
@@ -99,8 +87,8 @@ export function LoginPage() {
         setNeedsShift(true);
       }
     } catch {
-      setError('Wrong PIN — try again.');
-      setPin('');
+      setError('Incorrect password. Try again.');
+      setPassword('');
     } finally {
       setVerifying(false);
     }
@@ -120,24 +108,25 @@ export function LoginPage() {
     }
   };
 
-  // ── Start Shift screen ────────────────────────────────────────────────────
+  // ── Start shift screen
   if (needsShift && pendingUser) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6" style={{ background: 'var(--background)' }}>
+      <div className="min-h-screen flex items-center justify-center p-6"
+        style={{ background: 'radial-gradient(ellipse at 60% 0%, oklch(0.477 0.216 27.3 / 0.08) 0%, transparent 60%), var(--background)' }}
+      >
         <div className="bg-card border rounded-2xl shadow-2xl p-8 w-full max-w-sm space-y-6">
           <div className="text-center">
-            <p className="text-lg font-black">Start Shift</p>
+            <p className="text-lg font-black">Open Register</p>
             <p className="text-sm text-muted-foreground mt-1">
-              Welcome, {pendingUser.name}. Enter your starting cash.
+              Welcome, {pendingUser.name}. Enter your starting cash to begin your shift.
             </p>
           </div>
           <div className="space-y-2">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-              Starting Cash (KES)
-            </label>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Starting Cash (KES)</label>
             <input
               type="number"
-              className="w-full h-12 rounded-xl border border-input bg-background px-4 text-xl font-bold text-center"
+              className="w-full h-12 rounded-xl border border-input bg-background px-4 text-xl font-bold text-center outline-none focus:ring-2"
+              style={{ '--tw-ring-color': 'var(--primary)' } as React.CSSProperties}
               placeholder="0"
               value={startingCashInput}
               onChange={(e) => setStartingCashInput(e.target.value)}
@@ -147,8 +136,8 @@ export function LoginPage() {
           {error && <p className="text-xs text-destructive text-center">{error}</p>}
           <button
             onClick={handleStartShift}
-            disabled={startingShift || startingCashInput === ''}
-            className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+            disabled={startingShift || !startingCashInput}
+            className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50 transition-opacity"
             style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
           >
             {startingShift && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -159,163 +148,111 @@ export function LoginPage() {
     );
   }
 
-  // ── Main login screen ─────────────────────────────────────────────────────
+  // ── Main login
   return (
     <div
-      className="min-h-screen flex flex-col items-center justify-center p-6 gap-10"
-      style={{
-        background: 'radial-gradient(ellipse at 60% 0%, oklch(0.477 0.216 27.3 / 0.08) 0%, transparent 60%), var(--background)',
-      }}
+      className="min-h-screen flex items-center justify-center p-6"
+      style={{ background: 'radial-gradient(ellipse at 60% 0%, oklch(0.477 0.216 27.3 / 0.08) 0%, transparent 60%), var(--background)' }}
     >
-      {/* Header */}
-      <div className="flex flex-col items-center gap-4 text-center">
-        <div
-          className="h-16 w-16 rounded-2xl flex items-center justify-center shadow-xl"
-          style={{ background: 'var(--primary)' }}
-        >
-          <svg viewBox="0 0 24 24" fill="none" className="h-8 w-8" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-            <polyline points="9 22 9 12 15 12 15 22" />
-          </svg>
-        </div>
-        <div>
-          <p className="text-3xl font-black tracking-tight">{storeName}</p>
-          <p className="text-sm text-muted-foreground mt-1">Select your profile to continue</p>
-        </div>
-      </div>
+      <div className="w-full max-w-sm">
 
-      {/* User tiles / PIN entry */}
-      {!selectedUser ? (
-        <div className="w-full max-w-lg">
-          {loadingUsers ? (
-            <div className="flex justify-center py-12 text-muted-foreground gap-2">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="text-sm">Loading profiles…</span>
-            </div>
-          ) : error ? (
-            <p className="text-center text-sm text-destructive">{error}</p>
-          ) : (
-            <div className={`grid gap-4 ${users.length <= 2 ? 'grid-cols-2' : users.length === 3 ? 'grid-cols-3' : 'grid-cols-2 sm:grid-cols-3'}`}>
-              {users.map((u) => {
-                const meta = ROLE_META[u.role];
-                const Icon = meta.Icon;
-                return (
-                  <button
-                    key={u.id}
-                    onClick={() => { setSelectedUser(u); setPin(''); setError(''); }}
-                    className="group relative flex flex-col items-center gap-4 rounded-3xl border-2 bg-card p-6 text-center transition-all duration-200 hover:shadow-xl hover:-translate-y-1 active:scale-[0.97]"
-                    style={{ borderColor: 'transparent' }}
-                    onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = meta.color; }}
-                    onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent'; }}
-                  >
-                    {/* Avatar */}
-                    <div
-                      className="h-16 w-16 rounded-2xl flex items-center justify-center text-xl font-black shadow-sm transition-transform duration-200 group-hover:scale-105"
-                      style={{ background: meta.bg, color: meta.color }}
-                    >
-                      {initials(u.name)}
-                    </div>
-                    {/* Name */}
-                    <div className="space-y-1.5">
-                      <p className="font-bold text-sm leading-tight">{u.name}</p>
-                      {/* Role badge */}
-                      <span
-                        className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full"
-                        style={{ background: meta.bg, color: meta.color }}
-                      >
-                        <Icon className="h-2.5 w-2.5" />
-                        {meta.label}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      ) : (
-        /* PIN Entry */
-        <div className="bg-card border rounded-3xl shadow-2xl p-7 w-full max-w-xs space-y-6">
-          {/* Selected user */}
-          <div className="flex flex-col items-center gap-3">
+        {/* ── Login form ── */}
+        <div className="bg-card border rounded-2xl shadow-xl p-8 w-full space-y-7">
+          {/* Brand */}
+          <div className="flex items-center gap-3">
             <div
-              className="h-14 w-14 rounded-2xl flex items-center justify-center text-lg font-black"
-              style={{ background: ROLE_META[selectedUser.role].bg, color: ROLE_META[selectedUser.role].color }}
+              className="h-11 w-11 rounded-xl flex items-center justify-center shadow-md shrink-0 cursor-pointer select-none"
+              style={{ background: 'var(--primary)' }}
+              onClick={handleLogoClick}
             >
-              {initials(selectedUser.name)}
+              <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                <polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
             </div>
-            <div className="text-center">
-              <p className="font-bold text-base">{selectedUser.name}</p>
-              <p className="text-[11px] text-muted-foreground uppercase tracking-wide mt-0.5">
-                {ROLE_META[selectedUser.role].label}
-              </p>
+            <div>
+              <p className="font-black text-lg leading-tight">{storeName || 'NomadBite'}</p>
+              <p className="text-xs text-muted-foreground font-medium">Point of Sale</p>
             </div>
           </div>
 
-          {/* PIN dots */}
-          <div className="flex justify-center gap-3">
-            {[0, 1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="h-3.5 w-3.5 rounded-full border-2 transition-all duration-150"
-                style={{
-                  borderColor: ROLE_META[selectedUser.role].color,
-                  background: i < pin.length ? ROLE_META[selectedUser.role].color : 'transparent',
-                  transform: i < pin.length ? 'scale(1.15)' : 'scale(1)',
-                }}
+          <div>
+            <h1 className="text-2xl font-black tracking-tight">Welcome back</h1>
+            <p className="text-sm text-muted-foreground mt-1">Sign in to continue to your store</p>
+          </div>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Username</label>
+              {loadingUsers ? (
+                <div className="h-11 rounded-xl border bg-muted/40 flex items-center px-3 gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Loading…
+                </div>
+              ) : freeType ? (
+                <input
+                  type="text"
+                  autoComplete="off"
+                  autoFocus
+                  placeholder="Username"
+                  value={username}
+                  onChange={(e) => { setUsername(e.target.value); setError(''); }}
+                  className="w-full h-11 rounded-xl border border-input bg-background px-3.5 text-sm font-medium outline-none transition-shadow focus:ring-2 focus:ring-primary/30 focus:border-primary"
+                />
+              ) : (
+                <select
+                  autoFocus
+                  value={username}
+                  onChange={(e) => { setUsername(e.target.value); setError(''); }}
+                  className="w-full h-11 rounded-xl border border-input bg-background px-3.5 text-sm font-medium outline-none transition-shadow focus:ring-2 focus:ring-primary/30 focus:border-primary appearance-none cursor-pointer"
+                >
+                  <option value="">Select your name…</option>
+                  {users.filter((u) => u.role !== 'SUPERADMIN').map((u) => (
+                    <option key={u.id} value={u.name}>{u.name} — {u.role}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Password (PIN)</label>
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={4}
+                autoComplete="current-password"
+                placeholder="••••"
+                value={password}
+                onChange={(e) => { setPassword(e.target.value.replace(/\D/g, '').slice(0, 4)); setError(''); }}
+                className="w-full h-11 rounded-xl border border-input bg-background px-3.5 text-sm font-mono tracking-[0.4em] outline-none transition-shadow focus:ring-2 focus:ring-primary/30 focus:border-primary"
               />
-            ))}
-          </div>
+            </div>
 
-          {/* Numpad */}
-          <div className="grid grid-cols-3 gap-2.5">
-            {['1','2','3','4','5','6','7','8','9'].map((d) => (
-              <button
-                key={d}
-                onClick={() => numpad(d)}
-                className="h-12 rounded-xl border font-bold text-lg hover:bg-muted transition-all active:scale-90"
-              >
-                {d}
-              </button>
-            ))}
-            <button
-              onClick={() => { setSelectedUser(null); setPin(''); setError(''); }}
-              className="h-12 rounded-xl border text-xs font-semibold text-muted-foreground hover:bg-muted transition-all active:scale-90"
-            >
-              Back
-            </button>
-            <button
-              onClick={() => numpad('0')}
-              className="h-12 rounded-xl border font-bold text-lg hover:bg-muted transition-all active:scale-90"
-            >
-              0
-            </button>
-            <button
-              onClick={backspace}
-              className="h-12 rounded-xl border flex items-center justify-center hover:bg-muted transition-all active:scale-90"
-            >
-              <Delete className="h-4 w-4 text-muted-foreground" />
-            </button>
-          </div>
+            {error && (
+              <p className="text-xs font-semibold text-destructive bg-destructive/8 rounded-lg px-3 py-2">
+                {error}
+              </p>
+            )}
 
-          {error && <p className="text-xs text-destructive text-center -mt-2">{error}</p>}
+            <button
+              type="submit"
+              disabled={verifying || !username.trim() || password.length < 4}
+              className="w-full h-11 rounded-xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50 transition-opacity mt-2"
+              style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
+            >
+              {verifying
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> Signing in…</>
+                : <><LogIn className="h-4 w-4" /> Sign In</>
+              }
+            </button>
+          </form>
 
-          <button
-            onClick={handleVerify}
-            disabled={pin.length !== 4 || verifying}
-            className="w-full py-3 rounded-xl font-bold text-sm flex items-center justify-center gap-2 disabled:opacity-50 transition-all"
-            style={{
-              background: pin.length === 4 ? ROLE_META[selectedUser.role].color : undefined,
-              color: pin.length === 4 ? 'white' : undefined,
-            }}
-          >
-            {verifying && <Loader2 className="h-4 w-4 animate-spin" />}
-            {verifying ? 'Verifying…' : 'Sign In'}
-          </button>
+          <p className="text-xs text-muted-foreground/50 text-center pt-1">
+            {new Date().toLocaleDateString('en-KE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          </p>
         </div>
-      )}
 
-      <p className="text-[11px] text-muted-foreground/50">{new Date().toLocaleDateString('en-KE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</p>
+      </div>
     </div>
   );
 }

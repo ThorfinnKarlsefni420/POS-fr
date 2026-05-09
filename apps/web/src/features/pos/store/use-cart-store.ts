@@ -12,7 +12,7 @@ interface CartState {
 }
 
 const getEffectivePrice = (item: CartItem) =>
-  item.overridePrice !== undefined ? item.overridePrice : item.nomadBitePrice;
+  item.overridePrice !== undefined ? item.overridePrice : item.sellingPrice;
 
 export const useCartStore = create<CartState>((set, get) => ({
   items: [],

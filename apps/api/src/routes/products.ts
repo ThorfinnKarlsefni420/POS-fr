@@ -37,6 +37,7 @@ productsRouter.post('/', async (c) => {
       unit: body.unit ?? '',
       boxQty: body.boxQty ?? '',
       costPrice: body.costPrice ?? 0,
+      sellingPrice: body.sellingPrice ?? 0,
       nomadBitePrice: body.nomadBitePrice ?? 0,
       taxRate: body.taxRate ?? 0,
       isFractional: body.isFractional ?? false,
@@ -53,9 +54,14 @@ productsRouter.post('/', async (c) => {
 
 // Update item
 productsRouter.patch('/:id', async (c) => {
+  const id = c.req.param('id');
+
+  const existing = await prisma.item.findUnique({ where: { id }, select: { id: true } });
+  if (!existing) return c.json({ error: 'Item not found' }, 404);
+
   const body = await c.req.json();
   const item = await prisma.item.update({
-    where: { id: c.req.param('id') },
+    where: { id },
     data: {
       ...(body.name !== undefined && { name: body.name }),
       ...(body.sku !== undefined && { sku: body.sku }),
@@ -64,6 +70,7 @@ productsRouter.patch('/:id', async (c) => {
       ...(body.unit !== undefined && { unit: body.unit }),
       ...(body.boxQty !== undefined && { boxQty: body.boxQty }),
       ...(body.costPrice !== undefined && { costPrice: Number(body.costPrice) }),
+      ...(body.sellingPrice !== undefined && { sellingPrice: Number(body.sellingPrice) }),
       ...(body.nomadBitePrice !== undefined && { nomadBitePrice: Number(body.nomadBitePrice) }),
       ...(body.taxRate !== undefined && { taxRate: Number(body.taxRate) }),
       ...(body.isFractional !== undefined && { isFractional: body.isFractional }),
@@ -83,14 +90,17 @@ productsRouter.patch('/:id', async (c) => {
 
 // Delete item
 productsRouter.delete('/:id', async (c) => {
-  await prisma.item.delete({ where: { id: c.req.param('id') } });
+  const id = c.req.param('id');
+  const existing = await prisma.item.findUnique({ where: { id }, select: { id: true } });
+  if (!existing) return c.json({ error: 'Item not found' }, 404);
+  await prisma.item.delete({ where: { id } });
   return c.json({ ok: true });
 });
 
 // Bulk import — upsert by SKU
 productsRouter.post(
   '/import',
-  bodyLimit({ maxSize: 20 * 1024 * 1024 }), // 20 MB — enough for ~50k items
+  bodyLimit({ maxSize: 20 * 1024 * 1024 }),
   async (c) => {
     const { storeId } = await getStoreContext(c);
     if (!storeId) return c.json({ error: 'storeId required' }, 400);
@@ -112,6 +122,7 @@ productsRouter.post(
       unit: String(p.unit ?? ''),
       boxQty: String(p.boxQty ?? ''),
       costPrice: Number(p.costPrice ?? 0),
+      sellingPrice: Number(p.sellingPrice ?? 0),
       nomadBitePrice: Number(p.nomadBitePrice ?? 0),
       taxRate: Number(p.taxRate ?? 0),
       isFractional: Boolean(p.isFractional),
@@ -126,7 +137,6 @@ productsRouter.post(
     let failed = 0;
 
     if (body.replace) {
-      // After full delete, bulk-insert in chunks
       const CHUNK = 500;
       for (let i = 0; i < body.products.length; i += CHUNK) {
         try {
@@ -140,7 +150,6 @@ productsRouter.post(
         }
       }
     } else {
-      // Upsert path: small chunks to avoid saturating the connection pool
       const CHUNK = 25;
       for (let i = 0; i < body.products.length; i += CHUNK) {
         const chunk = body.products.slice(i, i + CHUNK);
@@ -165,14 +174,18 @@ productsRouter.post(
 
 // Adjust stock
 productsRouter.post('/:id/adjust', async (c) => {
+  const id = c.req.param('id');
+  const existing = await prisma.item.findUnique({ where: { id }, select: { id: true } });
+  if (!existing) return c.json({ error: 'Item not found' }, 404);
+
   const body = await c.req.json<{ delta: number; reasonCode: string; note?: string }>();
   const item = await prisma.item.update({
-    where: { id: c.req.param('id') },
+    where: { id },
     data: { currentStock: { increment: body.delta } },
   });
   await prisma.inventoryAdjustment.create({
     data: {
-      itemId: c.req.param('id'),
+      itemId: id,
       quantity: body.delta,
       reasonCode: body.reasonCode as never,
       note: body.note,

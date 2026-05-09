@@ -13,7 +13,7 @@ type ImportStatus = 'new' | 'price-change' | 'updated' | 'unchanged';
 interface Tagged extends Product {
   _status: ImportStatus;
   _oldCostPrice?: number;
-  _oldNomadBitePrice?: number;
+  _oldSellingPrice?: number;
 }
 
 function crossCheck(parsed: Product[], existing: Product[]): Tagged[] {
@@ -28,13 +28,13 @@ function crossCheck(parsed: Product[], existing: Product[]): Tagged[] {
     if (!match) return { ...p, _status: 'new' };
 
     const priceChanged =
-      match.costPrice !== p.costPrice || match.nomadBitePrice !== p.nomadBitePrice;
+      match.costPrice !== p.costPrice || match.sellingPrice !== p.sellingPrice;
     if (priceChanged) {
       return {
         ...p,
         _status: 'price-change',
         _oldCostPrice: match.costPrice,
-        _oldNomadBitePrice: match.nomadBitePrice,
+        _oldSellingPrice: match.sellingPrice,
       };
     }
 
@@ -88,7 +88,7 @@ export function CsvUploadDialog({ open, onClose }: Props) {
     setImportError(null);
     const toSend = replaceAll
       ? parseResult.products
-      : tagged.filter((p) => p._status !== 'unchanged').map(({ _status, _oldCostPrice, _oldNomadBitePrice, ...p }) => p as Product);
+      : tagged.filter((p) => p._status !== 'unchanged').map(({ _status, _oldCostPrice, _oldSellingPrice, ...p }) => p as Product);
     try {
       await importProducts.mutateAsync({ products: toSend, replace: replaceAll });
       setStep('done');
@@ -225,7 +225,7 @@ export function CsvUploadDialog({ open, onClose }: Props) {
                     <th className="text-left p-2 font-semibold">Category</th>
                     <th className="text-left p-2 font-semibold">Unit</th>
                     <th className="text-right p-2 font-semibold">Cost</th>
-                    <th className="text-right p-2 font-semibold" style={{ color: 'var(--primary)' }}>Price</th>
+                    <th className="text-right p-2 font-semibold" style={{ color: 'var(--primary)' }}>Selling Price</th>
                     <th className="text-center p-2 font-semibold">Status</th>
                   </tr>
                 </thead>
@@ -248,14 +248,14 @@ export function CsvUploadDialog({ open, onClose }: Props) {
                         )}
                       </td>
                       <td className="p-2 text-right font-bold" style={{ color: 'var(--primary)' }}>
-                        {p._status === 'price-change' && p._oldNomadBitePrice !== undefined && p._oldNomadBitePrice !== p.nomadBitePrice ? (
+                        {p._status === 'price-change' && p._oldSellingPrice !== undefined && p._oldSellingPrice !== p.sellingPrice ? (
                           <span>
-                            <span className="line-through opacity-50">{p._oldNomadBitePrice.toLocaleString()}</span>
+                            <span className="line-through opacity-50">{p._oldSellingPrice.toLocaleString()}</span>
                             {' → '}
-                            {p.nomadBitePrice.toLocaleString()}
+                            {p.sellingPrice.toLocaleString()}
                           </span>
                         ) : (
-                          p.nomadBitePrice > 0 ? p.nomadBitePrice.toLocaleString() : '—'
+                          p.sellingPrice > 0 ? p.sellingPrice.toLocaleString() : '—'
                         )}
                       </td>
                       <td className="p-2 text-center">

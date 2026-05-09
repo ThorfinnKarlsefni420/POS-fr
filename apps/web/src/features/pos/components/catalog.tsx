@@ -35,7 +35,7 @@ function useCols(): number {
 
 function ProductCard({ product, onAdd }: { product: Product; onAdd: (p: Product) => void }) {
   const outOfStock = product.currentStock <= 0;
-  const noPrice = product.nomadBitePrice <= 0;
+  const noPrice = product.sellingPrice <= 0;
   const disabled = outOfStock || noPrice;
 
   const hue = product.name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
@@ -89,7 +89,7 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: (p: Product)
           className="text-xs font-black mt-1"
           style={{ color: noPrice ? 'var(--muted-foreground)' : 'var(--primary)' }}
         >
-          {noPrice ? 'NO PRICE' : `KES ${Number(product.nomadBitePrice).toLocaleString()}`}
+          {noPrice ? 'NO PRICE' : `KES ${Number(product.sellingPrice).toLocaleString()}`}
         </div>
       </div>
 
@@ -117,7 +117,7 @@ export function Catalog() {
     const match = products.find(
       (p) => p.sku.toLowerCase() === barcode.toLowerCase()
     );
-    if (match && match.nomadBitePrice > 0) {
+    if (match && match.sellingPrice > 0) {
       addItem(match);
     } else {
       // Fall back to showing the barcode in the search box so the cashier can see it
@@ -141,7 +141,7 @@ export function Catalog() {
         p.sku.toLowerCase().includes(q) ||
         p.category.toLowerCase().includes(q);
       const matchesCategory = activeCategory === 'All' || p.category === activeCategory;
-      const isAvailable = p.currentStock > 0 && p.nomadBitePrice > 0;
+      const isAvailable = p.currentStock > 0 && p.sellingPrice > 0;
       const matchesVisibility = showOutOfStock || isAvailable;
       return matchesSearch && matchesCategory && matchesVisibility;
     });

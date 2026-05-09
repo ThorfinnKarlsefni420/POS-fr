@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Image as ImageIcon, Loader2, Play, StopCircle, CheckCircle, AlertCircle } from 'lucide-react';
-import { api } from '@/lib/api';
+
+const BASE = (import.meta.env.VITE_API_URL ?? 'http://localhost:3001/api') + '/image-sync';
 
 interface SyncStatus {
   total: number;
@@ -23,8 +24,8 @@ export function ImageSyncPanel() {
 
   const fetchStatus = async () => {
     try {
-      const res = await api.get('/image-sync/status');
-      setStatus(res.data);
+      const res = await fetch(`${BASE}/status`);
+      if (res.ok) setStatus(await res.json());
     } catch (err) {
       console.error('Failed to fetch sync status', err);
     }
@@ -33,7 +34,7 @@ export function ImageSyncPanel() {
   const startSync = async () => {
     setLoading(true);
     try {
-      await api.post('/image-sync/start');
+      await fetch(`${BASE}/start`, { method: 'POST' });
       await fetchStatus();
     } catch (err) {
       console.error('Failed to start sync', err);
@@ -44,7 +45,7 @@ export function ImageSyncPanel() {
 
   const stopSync = async () => {
     try {
-      await api.post('/image-sync/stop');
+      await fetch(`${BASE}/stop`, { method: 'POST' });
       await fetchStatus();
     } catch (err) {
       console.error('Failed to stop sync', err);
