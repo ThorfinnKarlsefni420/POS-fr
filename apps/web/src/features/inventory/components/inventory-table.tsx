@@ -1,4 +1,5 @@
 import { useRef, useState, useMemo } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { useProducts, useUpdateProduct, useDeleteProduct } from '@/hooks/use-products';
 import { useAuthStore } from '@/features/auth/store/use-auth-store';
 import { useSettingsStore } from '@/features/admin/store/use-settings-store';
@@ -6,6 +7,14 @@ import { uploadToCloudinary } from '@/lib/cloudinary';
 import { api } from '@/lib/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { Product } from '@/types/pos';
+
+function thumbUrl(url: string | undefined): string {
+  if (!url) return '';
+  if (url.includes('cloudinary.com') && url.includes('/upload/')) {
+    return url.replace('/upload/', '/upload/f_auto,q_auto,w_64,h_64,c_fill/');
+  }
+  return url;
+}
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -24,9 +33,10 @@ interface InventoryTableProps {
   recountFilter?: boolean;
   addOpen?: boolean;
   onAddClose?: () => void;
+  categoryFilter?: string;
 }
 
-export function InventoryTable({ recountFilter = false, addOpen = false, onAddClose }: InventoryTableProps) {
+export function InventoryTable({ recountFilter = false, addOpen = false, onAddClose, categoryFilter = '' }: InventoryTableProps) {
   const { data: products = [], isLoading } = useProducts();
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
@@ -35,6 +45,7 @@ export function InventoryTable({ recountFilter = false, addOpen = false, onAddCl
   const { calcNomadBitePrice, cloudinaryCloudName, cloudinaryUploadPreset } = useSettingsStore();
   const queryClient = useQueryClient();
 
+  const tableContainerRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState('');
   const [editItem, setEditItem] = useState<Product | null>(null);
   const [editForm, setEditForm] = useState<Partial<Product>>({});
@@ -107,6 +118,7 @@ export function InventoryTable({ recountFilter = false, addOpen = false, onAddCl
   const filtered = useMemo(() => {
     let list = products;
     if (recountFilter) list = list.filter((p) => p.currentStock < 0);
+    if (categoryFilter) list = list.filter((p) => p.category === categoryFilter);
     const q = search.toLowerCase();
     if (!q) return list;
     return list.filter(
@@ -115,7 +127,14 @@ export function InventoryTable({ recountFilter = false, addOpen = false, onAddCl
         p.sku.toLowerCase().includes(q) ||
         p.category.toLowerCase().includes(q)
     );
-  }, [products, search, recountFilter]);
+  }, [products, search, recountFilter, categoryFilter]);
+
+  const rowVirtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => tableContainerRef.current,
+    estimateSize: () => 52,
+    overscan: 10,
+  });
 
   const openEdit = (product: Product) => {
     setEditItem(product);
@@ -151,6 +170,14 @@ export function InventoryTable({ recountFilter = false, addOpen = false, onAddCl
       setEditForm((f) => ({ ...f, [key]: e.target.value })),
   });
 
+  const marginColor = (costPrice: number, sellingPrice: number) => {
+    if (sellingPrice <= 0) return { background: 'var(--muted)', color: 'var(--muted-foreground)' };
+    const pct = ((sellingPrice - costPrice) / sellingPrice) * 100;
+    if (pct < 5) return { background: 'oklch(0.477 0.216 27.3 / 0.12)', color: 'var(--primary)' };
+    if (pct < 15) return { background: 'oklch(0.75 0.15 60 / 0.15)', color: 'oklch(0.55 0.15 60)' };
+    return { background: 'oklch(0.5 0.15 145 / 0.12)', color: 'oklch(0.4 0.15 145)' };
+  };
+
   const stockColor = (stock: number) => {
     if (stock < 0) return { background: 'oklch(0.4 0.18 27.3 / 0.15)', color: 'oklch(0.55 0.22 27.3)' }; // negative = recount
     if (stock === 0) return { background: 'oklch(0.477 0.216 27.3 / 0.12)', color: 'var(--primary)' };    // zero = out
@@ -181,9 +208,9 @@ export function InventoryTable({ recountFilter = false, addOpen = false, onAddCl
       </div>
 
       {/* Table */}
-      <div className="border rounded-xl overflow-auto bg-card flex-1">
+      <div ref={tableContainerRef} className="border rounded-xl overflow-auto bg-card flex-1">
         <table className="w-full text-sm">
-          <thead>
+          <thead className="sticky top-0 z-10">
             <tr style={{ background: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>
               <th className="text-left p-3 font-semibold text-xs text-muted-foreground uppercase tracking-wide">Item</th>
               <th className="text-left p-3 font-semibold text-xs text-muted-foreground uppercase tracking-wide">Category</th>
@@ -191,73 +218,98 @@ export function InventoryTable({ recountFilter = false, addOpen = false, onAddCl
               <th className="text-left p-3 font-semibold text-xs text-muted-foreground uppercase tracking-wide">Unit</th>
               <th className="text-right p-3 font-semibold text-xs text-muted-foreground uppercase tracking-wide">Buying Price</th>
               <th className="text-right p-3 font-semibold text-xs text-muted-foreground uppercase tracking-wide">Selling Price</th>
+              <th className="text-center p-3 font-semibold text-xs text-muted-foreground uppercase tracking-wide">Margin</th>
               <th className="text-center p-3 font-semibold text-xs text-muted-foreground uppercase tracking-wide">Stock</th>
               <th className="text-center p-3 font-semibold text-xs text-muted-foreground uppercase tracking-wide">Img</th>
               {isAdmin && <th className="p-3" />}
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody>
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={isAdmin ? 9 : 8} className="p-12 text-center text-muted-foreground">
+                <td colSpan={isAdmin ? 10 : 9} className="p-12 text-center text-muted-foreground">
                   <Package className="h-8 w-8 mx-auto mb-2 opacity-20" />
                   No items found
                 </td>
               </tr>
             )}
-            {filtered.map((p) => (
-              <tr key={p.id} className="hover:bg-muted/30 transition-colors">
-                <td className="p-3 font-semibold">{p.name}</td>
-                <td className="p-3">
-                  <div className="text-xs text-muted-foreground">{p.category}</div>
-                  <div className="text-xs text-muted-foreground/60">{p.subCategory}</div>
-                </td>
-                <td className="p-3 font-mono text-xs text-muted-foreground">{p.sku}</td>
-                <td className="p-3 text-xs text-muted-foreground">{p.unit}</td>
-                <td className="p-3 text-right text-xs text-muted-foreground">
-                  {p.costPrice > 0 ? Number(p.costPrice).toLocaleString() : '—'}
-                </td>
-                <td className="p-3 text-right font-bold text-sm" style={{ color: 'var(--primary)' }}>
-                  {p.sellingPrice > 0 ? Number(p.sellingPrice).toLocaleString() : '—'}
-                </td>
-                <td className="p-3 text-center">
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={stockColor(p.currentStock)}>
-                    {p.currentStock < 0 ? `RECOUNT (${p.currentStock})` : p.currentStock === 0 ? 'Out' : p.currentStock}
-                  </span>
-                </td>
-                <td className="p-3 text-center">
-                  {p.imageUrl ? (
-                    <img src={p.imageUrl} alt="" className="h-8 w-8 object-cover rounded-lg mx-auto" onError={(e) => { (e.currentTarget.style.display = 'none'); }} />
-                  ) : (
-                    <Package className="h-4 w-4 text-muted-foreground/20 mx-auto" />
-                  )}
-                </td>
-                {isAdmin && (
-                  <td className="p-3">
-                    <div className="flex gap-1 justify-end">
-                      <button
-                        onClick={() => { setAdjustItem(p); setAdjustDelta(''); setAdjustReason('RESTOCK'); setAdjustNote(''); }}
-                        title="Adjust stock"
-                        className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                      >
-                        <SlidersHorizontal className="h-3.5 w-3.5" />
-                      </button>
-                      <button onClick={() => openEdit(p)} className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={() => deleteProduct.mutate(p.id)}
-                        className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground transition-colors"
-                        onMouseEnter={e => (e.currentTarget.style.color = 'var(--primary)')}
-                        onMouseLeave={e => (e.currentTarget.style.color = '')}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </td>
+            {rowVirtualizer.getVirtualItems().length > 0 && (
+              <>
+                {rowVirtualizer.getVirtualItems()[0].start > 0 && (
+                  <tr><td style={{ height: rowVirtualizer.getVirtualItems()[0].start }} /></tr>
                 )}
-              </tr>
-            ))}
+                {rowVirtualizer.getVirtualItems().map((vRow) => {
+                  const p = filtered[vRow.index];
+                  return (
+                    <tr key={p.id} className="hover:bg-muted/30 transition-colors border-b border-border/50">
+                      <td className="p-3 font-semibold">{p.name}</td>
+                      <td className="p-3">
+                        <div className="text-xs text-muted-foreground">{p.category}</div>
+                        <div className="text-xs text-muted-foreground/60">{p.subCategory}</div>
+                      </td>
+                      <td className="p-3 font-mono text-xs text-muted-foreground">{p.sku}</td>
+                      <td className="p-3 text-xs text-muted-foreground">{p.unit}</td>
+                      <td className="p-3 text-right text-xs text-muted-foreground">
+                        {p.costPrice > 0 ? Number(p.costPrice).toLocaleString() : '—'}
+                      </td>
+                      <td className="p-3 text-right font-bold text-sm" style={{ color: 'var(--primary)' }}>
+                        {p.sellingPrice > 0 ? Number(p.sellingPrice).toLocaleString() : '—'}
+                      </td>
+                      <td className="p-3 text-center">
+                        {p.sellingPrice > 0 ? (
+                          <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={marginColor(p.costPrice, p.sellingPrice)}>
+                            {(((p.sellingPrice - p.costPrice) / p.sellingPrice) * 100).toFixed(1)}%
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="p-3 text-center">
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={stockColor(p.currentStock)}>
+                          {p.currentStock < 0 ? `RECOUNT (${p.currentStock})` : p.currentStock === 0 ? 'Out' : p.currentStock}
+                        </span>
+                      </td>
+                      <td className="p-3 text-center">
+                        {p.imageUrl ? (
+                          <img src={thumbUrl(p.imageUrl)} alt="" loading="lazy" className="h-8 w-8 object-cover rounded-lg mx-auto" onError={(e) => { (e.currentTarget.style.display = 'none'); }} />
+                        ) : (
+                          <Package className="h-4 w-4 text-muted-foreground/20 mx-auto" />
+                        )}
+                      </td>
+                      {isAdmin && (
+                        <td className="p-3">
+                          <div className="flex gap-1 justify-end">
+                            <button
+                              onClick={() => { setAdjustItem(p); setAdjustDelta(''); setAdjustReason('RESTOCK'); setAdjustNote(''); }}
+                              title="Adjust stock"
+                              className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                            >
+                              <SlidersHorizontal className="h-3.5 w-3.5" />
+                            </button>
+                            <button onClick={() => openEdit(p)} className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => deleteProduct.mutate(p.id)}
+                              className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground transition-colors"
+                              onMouseEnter={e => (e.currentTarget.style.color = 'var(--primary)')}
+                              onMouseLeave={e => (e.currentTarget.style.color = '')}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+                {(() => {
+                  const items = rowVirtualizer.getVirtualItems();
+                  const paddingBottom = rowVirtualizer.getTotalSize() - items[items.length - 1].end;
+                  return paddingBottom > 0 ? <tr><td style={{ height: paddingBottom }} /></tr> : null;
+                })()}
+              </>
+            )}
           </tbody>
         </table>
       </div>

@@ -1,16 +1,25 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { api, ApiUser, SuperAdminInventoryItem } from '@/lib/api';
 import { useAuthStore } from '@/features/auth/store/use-auth-store';
 import { parseSpreadsheet } from '@/lib/file-parser';
 import { useSettingsStore } from '@/features/admin/store/use-settings-store';
 import { SuperAdminImageMatcher } from './components/superadmin-image-matcher';
 import {
-  Store, TrendingUp, ShoppingBag, Users, Activity,
+  Store, TrendingUp, ShoppingBag, Users,
   Plus, RefreshCw, LogOut, Loader2, X, CheckCircle2, AlertCircle,
   Pencil, Trash2, UserPlus, Shield, User, Package, Percent,
-  LayoutDashboard, Boxes, Settings2, Search, Upload, Image,
+  LayoutDashboard, Boxes, Settings2, Search, Upload, Image, SlidersHorizontal,
 } from 'lucide-react';
+
+function thumbUrl(url: string | null | undefined): string {
+  if (!url) return '';
+  if (url.includes('cloudinary.com') && url.includes('/upload/')) {
+    return url.replace('/upload/', '/upload/f_auto,q_auto,w_64,h_64,c_fill/');
+  }
+  return url;
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -354,6 +363,7 @@ function InventoryTab({ stores }: { stores: Array<{ id: string; name: string }> 
   const [importOpen, setImportOpen] = useState(false);
   const [imageMatcherOpen, setImageMatcherOpen] = useState(false);
   const qc = useQueryClient();
+  const tableContainerRef = useRef<HTMLDivElement>(null);
 
   const { data: globalSettings } = useQuery({
     queryKey: ['superadmin-global-settings'],
@@ -371,6 +381,20 @@ function InventoryTab({ stores }: { stores: Array<{ id: string; name: string }> 
   });
 
   const handleSearch = () => setSearch(searchInput);
+
+  const rowVirtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => tableContainerRef.current,
+    estimateSize: () => 56,
+    overscan: 8,
+    measureElement: useCallback((el: Element) => el.getBoundingClientRect().height, []),
+  });
+
+  const virtualItems = rowVirtualizer.getVirtualItems();
+  const paddingTop    = virtualItems.length > 0 ? virtualItems[0].start : 0;
+  const paddingBottom = virtualItems.length > 0
+    ? rowVirtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end
+    : 0;
 
   const stockColor = (stock: number) => {
     if (stock < 0) return 'text-red-600 bg-red-50';
@@ -473,56 +497,17 @@ function InventoryTab({ stores }: { stores: Array<{ id: string; name: string }> 
             <span className="text-sm">Loading inventory…</span>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <div ref={tableContainerRef} className="overflow-auto" style={{ maxHeight: 'calc(100vh - 300px)' }}>
             <table className="w-full text-sm">
-              <thead>
+              <thead className="sticky top-0 z-10">
                 <tr className="border-b bg-gray-50">
                   {['Stores', 'Item', 'SKU', 'Category', 'Buying Price', "Vendor's Selling Price", 'NomadBite Price', 'Tax %', 'Stock'].map((h) => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y">
-                {items.map((item: SuperAdminInventoryItem) => (
-                  <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
-                      {item.storeCount > 1
-                        ? <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">{item.storeCount} stores</span>
-                        : <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{item.storeName}</span>
-                      }
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2.5">
-                        {item.imageUrl
-                          ? <img src={item.imageUrl} alt="" className="h-8 w-8 rounded-lg object-cover shrink-0" />
-                          : <div className="h-8 w-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0"><Package className="h-4 w-4 text-gray-300" /></div>
-                        }
-                        <span className="font-semibold">{item.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-400">{item.sku}</td>
-                    <td className="px-4 py-3 text-xs text-gray-500">
-                      <div>{item.category}</div>
-                      {item.subCategory && <div className="text-gray-300">{item.subCategory}</div>}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500">
-                      {item.costPrice > 0 ? Number(item.costPrice).toLocaleString() : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">
-                      {item.sellingPrice > 0 ? Number(item.sellingPrice).toLocaleString() : '—'}
-                    </td>
-                    <td className="px-4 py-3 font-bold text-orange-600">
-                      {item.nomadBitePrice > 0 ? Number(item.nomadBitePrice).toLocaleString() : <span className="text-gray-300 font-normal text-xs">not set</span>}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-500">{item.taxRate > 0 ? `${item.taxRate}%` : '0%'}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${stockColor(item.currentStock)}`}>
-                        {item.currentStock < 0 ? `RECOUNT (${item.currentStock})` : item.currentStock === 0 ? 'Out' : item.currentStock}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-                {items.length === 0 && !isLoading && (
+              <tbody>
+                {items.length === 0 && (
                   <tr>
                     <td colSpan={9} className="px-4 py-16 text-center text-gray-400">
                       <Boxes className="h-8 w-8 mx-auto mb-2 opacity-20" />
@@ -530,6 +515,50 @@ function InventoryTab({ stores }: { stores: Array<{ id: string; name: string }> 
                     </td>
                   </tr>
                 )}
+                {paddingTop > 0 && <tr><td style={{ height: paddingTop }} /></tr>}
+                {virtualItems.map((vRow) => {
+                  const item = items[vRow.index];
+                  return (
+                    <tr key={item.id} className="hover:bg-gray-50 border-b border-gray-100">
+                      <td className="px-4 py-3">
+                        {item.storeCount > 1
+                          ? <span className="text-xs font-semibold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">{item.storeCount} stores</span>
+                          : <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{item.storeName}</span>
+                        }
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2.5">
+                          {item.imageUrl
+                            ? <img src={thumbUrl(item.imageUrl)} alt="" loading="lazy" className="h-8 w-8 rounded-lg object-cover shrink-0" />
+                            : <div className="h-8 w-8 rounded-lg bg-gray-100 flex items-center justify-center shrink-0"><Package className="h-4 w-4 text-gray-300" /></div>
+                          }
+                          <span className="font-semibold">{item.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-gray-400">{item.sku}</td>
+                      <td className="px-4 py-3 text-xs text-gray-500">
+                        <div>{item.category}</div>
+                        {item.subCategory && <div className="text-gray-300">{item.subCategory}</div>}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500">
+                        {item.costPrice > 0 ? Number(item.costPrice).toLocaleString() : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-gray-600">
+                        {item.sellingPrice > 0 ? Number(item.sellingPrice).toLocaleString() : '—'}
+                      </td>
+                      <td className="px-4 py-3 font-bold text-orange-600">
+                        {item.nomadBitePrice > 0 ? Number(item.nomadBitePrice).toLocaleString() : <span className="text-gray-300 font-normal text-xs">not set</span>}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-500">{item.taxRate > 0 ? `${item.taxRate}%` : '0%'}</td>
+                      <td className="px-4 py-3">
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${stockColor(item.currentStock)}`}>
+                          {item.currentStock < 0 ? `RECOUNT (${item.currentStock})` : item.currentStock === 0 ? 'Out' : item.currentStock}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {paddingBottom > 0 && <tr><td style={{ height: paddingBottom }} /></tr>}
               </tbody>
             </table>
           </div>
@@ -556,6 +585,9 @@ function PricingTab() {
   const [savingMarkup, setSavingMarkup] = useState(false);
   const [savingCloud, setSavingCloud]   = useState(false);
   const [saveMsg, setSaveMsg]           = useState('');
+  const [vendorMarkup, setVendorMarkup] = useState('20');
+  const [roundTo, setRoundTo]           = useState(10);
+  const [onlyUnset, setOnlyUnset]       = useState(false);
 
   useEffect(() => {
     if (!settings) return;
@@ -589,10 +621,10 @@ function PricingTab() {
     }
   };
 
-  const randomizeMutation = useMutation({
-    mutationFn: () => api.superadmin.randomizeSellingPrices(),
+  const setVendorMutation = useMutation({
+    mutationFn: () => api.superadmin.setVendorPrices(Number(vendorMarkup), roundTo, onlyUnset),
     onSuccess: (data) => {
-      setSaveMsg(`✓ Randomized vendor selling prices for ${data.updated} items.`);
+      setSaveMsg(`✓ Set vendor selling prices for ${data.updated} items.`);
       qc.invalidateQueries({ queryKey: ['superadmin-inventory'] });
       setTimeout(() => setSaveMsg(''), 6000);
     },
@@ -689,29 +721,85 @@ function PricingTab() {
         </button>
       </div>
 
-      {/* Randomize vendor selling prices */}
+      {/* Set vendor selling prices */}
       <div className="bg-white border rounded-2xl p-6 space-y-4">
         <div className="flex items-center gap-2">
-          <Activity className="h-4 w-4 text-orange-600" />
-          <p className="font-bold text-sm">Randomize Vendor Selling Prices</p>
+          <SlidersHorizontal className="h-4 w-4 text-orange-600" />
+          <p className="font-bold text-sm">Set Vendor Selling Prices</p>
         </div>
         <p className="text-xs text-gray-500">
-          Sets each vendor's selling price to a random 10–35% markup on their cost price.
-          Useful for demo data or when vendors haven't set their own prices yet.
+          Calculates vendor selling prices from cost price using a fixed markup.
+          Optionally rounds up to clean KES amounts — then run Recalculate to update NomadBite prices.
         </p>
 
-        <div className="rounded-xl bg-blue-50 border border-blue-200 p-3 text-xs text-blue-700 font-medium">
-          Only affects vendor selling prices — not NomadBite prices. Run Recalculate after to update NomadBite prices.
+        <div className="space-y-4">
+          <div className="flex gap-3 items-end">
+            <div className="flex-1 space-y-1.5">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Markup %</label>
+              <div className="relative">
+                <input
+                  type="number" min="0" max="1000" step="0.5"
+                  className="w-full h-10 rounded-xl border border-gray-200 bg-gray-50 px-3 pr-8 text-sm font-semibold"
+                  value={vendorMarkup}
+                  onChange={(e) => setVendorMarkup(e.target.value)}
+                  placeholder="e.g. 20"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-bold">%</span>
+              </div>
+            </div>
+            <div className="flex-1 space-y-1.5">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Round up to nearest</label>
+              <div className="flex gap-1.5">
+                {[0, 5, 10, 50].map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => setRoundTo(v)}
+                    className={`flex-1 h-10 rounded-xl border text-xs font-bold transition-colors ${
+                      roundTo === v
+                        ? 'bg-orange-600 text-white border-orange-600'
+                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    {v === 0 ? 'None' : `KES ${v}`}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded accent-orange-600"
+              checked={onlyUnset}
+              onChange={(e) => setOnlyUnset(e.target.checked)}
+            />
+            <div>
+              <p className="text-sm font-semibold text-gray-700">Only items with no selling price set</p>
+              <p className="text-xs text-gray-400">Leave unchecked to overwrite all vendor selling prices</p>
+            </div>
+          </label>
+
+          {vendorMarkup && Number(vendorMarkup) >= 0 && (
+            <div className="rounded-xl bg-gray-50 border border-gray-200 p-3 text-xs text-gray-600 font-mono">
+              Cost KES 100 → KES {
+                roundTo > 0
+                  ? Math.ceil(100 * (1 + Number(vendorMarkup) / 100) / roundTo) * roundTo
+                  : Math.round(100 * (1 + Number(vendorMarkup) / 100) * 100) / 100
+              }
+              {roundTo > 0 && <span className="text-gray-400 font-sans"> (rounded up to KES {roundTo})</span>}
+            </div>
+          )}
         </div>
 
         <button
-          onClick={() => randomizeMutation.mutate()}
-          disabled={randomizeMutation.isPending}
-          className="w-full h-11 rounded-xl border-2 border-gray-300 text-gray-600 text-sm font-bold flex items-center justify-center gap-2 hover:bg-gray-50 disabled:opacity-60 transition-colors"
+          onClick={() => setVendorMutation.mutate()}
+          disabled={setVendorMutation.isPending || !vendorMarkup || Number(vendorMarkup) < 0}
+          className="w-full h-11 rounded-xl bg-orange-600 text-white text-sm font-bold flex items-center justify-center gap-2 hover:bg-orange-700 disabled:opacity-60 transition-colors"
         >
-          {randomizeMutation.isPending
-            ? <><Loader2 className="h-4 w-4 animate-spin" /> Randomizing…</>
-            : <><Activity className="h-4 w-4" /> Randomize Selling Prices</>
+          {setVendorMutation.isPending
+            ? <><Loader2 className="h-4 w-4 animate-spin" /> Applying…</>
+            : <><SlidersHorizontal className="h-4 w-4" /> Set Vendor Prices</>
           }
         </button>
       </div>

@@ -11,6 +11,7 @@ export function useProducts() {
       const items = await api.products.list();
       return items.map(apiItemToProduct);
     },
+    staleTime: 5 * 60 * 1000,
   });
 }
 

@@ -91,6 +91,7 @@ function rowsToProducts(rows: Row[], serviceFeePercent: number): ParseResult {
   const errors: string[] = [];
   let skipped = 0;
   const products: Product[] = [];
+  const seenSkus = new Map<string, number>();
 
   rows.forEach((row, i) => {
     const name = cols.nameCol ? row[cols.nameCol]?.toString().trim() : undefined;
@@ -120,12 +121,17 @@ function rowsToProducts(rows: Row[], serviceFeePercent: number): ParseResult {
     const rawSku = cols.skuCol ? row[cols.skuCol]?.toString().trim() : undefined;
     const fileImage = cols.imageCol ? row[cols.imageCol]?.toString().trim() : undefined;
 
+    const baseSku = rawSku
+      ? rawSku.replace(/\s+/g, '-')
+      : `SKU-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)}`;
+    const skuCount = seenSkus.get(baseSku) ?? 0;
+    seenSkus.set(baseSku, skuCount + 1);
+    const sku = skuCount === 0 ? baseSku : `${baseSku}-${skuCount + 1}`;
+
     products.push({
       id: `import-${Date.now()}-${i}`,
       name,
-      sku: rawSku
-        ? rawSku.replace(/\s+/g, '-')
-        : `SKU-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)}`,
+      sku,
       category: cols.categoryCol ? row[cols.categoryCol]?.toString().trim() ?? '' : '',
       subCategory: cols.subCategoryCol ? row[cols.subCategoryCol]?.toString().trim() ?? '' : '',
       unit: cols.unitCol ? row[cols.unitCol]?.toString().trim() ?? '' : '',

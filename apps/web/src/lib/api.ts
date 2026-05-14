@@ -155,6 +155,11 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ delta, reasonCode, note }),
       }),
+    bulkImage: (ids: string[], imageUrl: string) =>
+      req<{ updated: number }>('/products/bulk-image', {
+        method: 'POST',
+        body: JSON.stringify({ ids, imageUrl }),
+      }),
   },
   settings: {
     get: () => req<ApiSettings>('/settings'),
@@ -212,8 +217,11 @@ export const api = {
       req<{ ok: boolean }>('/superadmin/settings', { method: 'POST', body: JSON.stringify(data) }),
     recalculatePrices: () =>
       req<{ updated: number; markupPercent: number }>('/superadmin/recalculate-prices', { method: 'POST' }),
-    randomizeSellingPrices: () =>
-      req<{ updated: number }>('/superadmin/randomize-selling-prices', { method: 'POST' }),
+    setVendorPrices: (markupPercent: number, roundTo: number, onlyUnset: boolean) =>
+      req<{ updated: number }>('/superadmin/set-vendor-prices', {
+        method: 'POST',
+        body: JSON.stringify({ markupPercent, roundTo, onlyUnset }),
+      }),
     importForStore: (storeId: string, products: Partial<ApiItem>[], replace: boolean) =>
       reqForStore<{ succeeded: number; failed: number }>('/products/import', storeId, {
         method: 'POST',

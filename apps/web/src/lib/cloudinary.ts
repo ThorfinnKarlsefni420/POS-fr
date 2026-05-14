@@ -16,7 +16,8 @@ export async function uploadToCloudinary(
   const form = new FormData();
   form.append('file', file);
   form.append('upload_preset', uploadPreset);
-  if (publicId) form.append('public_id', publicId);
+  // Append a timestamp so re-uploads always succeed — unsigned presets don't allow overwriting the same public_id
+  if (publicId) form.append('public_id', `${publicId}_${Date.now()}`);
 
   const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
     method: 'POST',

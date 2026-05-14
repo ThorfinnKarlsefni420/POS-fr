@@ -1,17 +1,20 @@
-import { useRef, useState, useMemo } from 'react';
-import { FolderOpen, CheckCircle, AlertTriangle, XCircle, Loader2, X, Info } from 'lucide-react';
+import { useRef, useState, useEffect, useCallback } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { FolderOpen, CheckCircle, XCircle, Loader2, X, Search, Plus, Info } from 'lucide-react';
 import { uploadToCloudinary } from '@/lib/cloudinary';
 import { api, SuperAdminInventoryItem } from '@/lib/api';
 import { useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
+// ─── Fuzzy matching ───────────────────────────────────────────────────────────
+
 function tokenize(s: string): string[] {
   return s.toLowerCase().replace(/[^a-z0-9]/g, ' ').split(/\s+/).filter((t) => t.length > 1);
 }
 
-function matchScore(filename: string, productName: string): number {
-  const fa = tokenize(filename);
-  const fb = tokenize(productName);
+function matchScore(a: string, b: string): number {
+  const fa = tokenize(a);
+  const fb = tokenize(b);
   if (!fa.length || !fb.length) return 0;
   let matched = 0;
   for (const ta of fa) {
@@ -20,22 +23,50 @@ function matchScore(filename: string, productName: string): number {
   return matched / Math.max(fa.length, fb.length);
 }
 
-function stemFilename(filename: string): string {
-  return filename.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ').trim();
+function stemFilename(f: string): string {
+  return f.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ').trim();
+}
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface Candidate {
+  id: string;
+  name: string;
+  sku: string;
+  score: number;
 }
 
 interface MatchRow {
   file: File;
-  preview: string;
   stem: string;
-  matchedId: string | null;
-  matchedName: string | null;
-  score: number;
-  candidates: Array<{ id: string; name: string; score: number }>;
+  candidates: Candidate[];
+  checkedIds: string[];  // representative IDs — broadcast uses name
+  rowSearch: string;
   status: 'pending' | 'uploading' | 'done' | 'error';
-  cloudUrl?: string;
   updatedCount?: number;
 }
+
+// ─── Lazy preview ─────────────────────────────────────────────────────────────
+
+function LazyPreview({ file }: { file: File }) {
+  const [src, setSrc] = useState('');
+  useEffect(() => {
+    const url = URL.createObjectURL(file);
+    setSrc(url);
+    return () => URL.revokeObjectURL(url);
+  }, [file]);
+  return src
+    ? <img src={src} alt="" className="h-12 w-12 object-cover rounded-lg border shrink-0" />
+    : <div className="h-12 w-12 rounded-lg border bg-gray-100 shrink-0" />;
+}
+
+function ScoreBadge({ score }: { score: number }) {
+  if (score === 0) return <span className="text-[10px] text-gray-400 px-1.5 py-0.5 rounded-full bg-gray-100">manual</span>;
+  const cls = score >= 0.6 ? 'text-green-600 bg-green-500/10' : score >= 0.3 ? 'text-amber-600 bg-amber-500/10' : 'text-gray-400 bg-gray-100';
+  return <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${cls}`}>{Math.round(score * 100)}%</span>;
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 interface Props {
   open: boolean;
@@ -48,75 +79,98 @@ interface Props {
 export function SuperAdminImageMatcher({ open, onClose, products, cloudinaryCloudName, cloudinaryUploadPreset }: Props) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
   const [rows, setRows] = useState<MatchRow[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [processing, setProcessing] = useState(false);
 
   const noCloudinary = !cloudinaryCloudName || !cloudinaryUploadPreset;
 
-  const stats = useMemo(() => ({
-    good: rows.filter((r) => r.matchedId && r.score >= 0.5).length,
-    low:  rows.filter((r) => r.matchedId && r.score > 0 && r.score < 0.5).length,
-    none: rows.filter((r) => !r.matchedId).length,
-    done: rows.filter((r) => r.status === 'done').length,
-  }), [rows]);
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => containerRef.current,
+    estimateSize: () => 160,
+    overscan: 3,
+    measureElement: useCallback((el: Element) => el.getBoundingClientRect().height, []),
+  });
 
-  const handleFiles = (files: FileList | null) => {
-    if (!files) return;
+  const handleFiles = async (files: FileList | null) => {
+    if (!files || !files.length || noCloudinary) return;
+    setProcessing(true);
+    const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    const CHUNK = 50;
     const newRows: MatchRow[] = [];
-    for (const file of Array.from(files)) {
-      if (!file.type.startsWith('image/')) continue;
-      const stem = stemFilename(file.name);
-      const scored = products
-        .map((p) => ({ id: p.id, name: p.name, score: matchScore(stem, p.name) }))
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 5);
-      const best = scored[0] ?? null;
-      newRows.push({
-        file,
-        preview: URL.createObjectURL(file),
-        stem,
-        matchedId:   best && best.score > 0 ? best.id   : null,
-        matchedName: best && best.score > 0 ? best.name : null,
-        score: best?.score ?? 0,
-        candidates: scored,
-        status: 'pending',
-      });
+
+    for (let i = 0; i < imageFiles.length; i += CHUNK) {
+      for (const file of imageFiles.slice(i, i + CHUNK)) {
+        const stem = stemFilename(file.name);
+        const candidates: Candidate[] = products
+          .map((p) => ({ id: p.id, name: p.name, sku: p.sku, score: matchScore(stem, p.name) }))
+          .filter((c) => c.score > 0)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 20);
+        const checkedIds = candidates.filter((c) => c.score >= 0.3).map((c) => c.id);
+        newRows.push({ file, stem, candidates, checkedIds, rowSearch: '', status: 'pending' });
+      }
+      await new Promise((r) => setTimeout(r, 0));
     }
+
     setRows((prev) => [...prev, ...newRows]);
+    setProcessing(false);
   };
 
-  const setMatch = (idx: number, productId: string | null) => {
+  const toggleCheck = (rowIdx: number, id: string) => {
     setRows((prev) => prev.map((r, i) => {
-      if (i !== idx) return r;
-      const p = products.find((x) => x.id === productId);
-      return { ...r, matchedId: productId, matchedName: p?.name ?? null, score: p ? matchScore(r.stem, p.name) : 0 };
+      if (i !== rowIdx) return r;
+      const has = r.checkedIds.includes(id);
+      return { ...r, checkedIds: has ? r.checkedIds.filter((x) => x !== id) : [...r.checkedIds, id] };
     }));
   };
 
-  const removeRow = (idx: number) => {
-    setRows((prev) => {
-      URL.revokeObjectURL(prev[idx].preview);
-      return prev.filter((_, i) => i !== idx);
-    });
+  const addCandidate = (rowIdx: number, product: SuperAdminInventoryItem) => {
+    setRows((prev) => prev.map((r, i) => {
+      if (i !== rowIdx) return r;
+      if (r.candidates.some((c) => c.id === product.id)) {
+        return { ...r, checkedIds: r.checkedIds.includes(product.id) ? r.checkedIds : [...r.checkedIds, product.id], rowSearch: '' };
+      }
+      const c: Candidate = { id: product.id, name: product.name, sku: product.sku, score: 0 };
+      return { ...r, candidates: [...r.candidates, c], checkedIds: [...r.checkedIds, product.id], rowSearch: '' };
+    }));
   };
 
+  const setRowSearch = (rowIdx: number, value: string) => {
+    setRows((prev) => prev.map((r, i) => i === rowIdx ? { ...r, rowSearch: value } : r));
+  };
+
+  const removeRow = (rowIdx: number) => setRows((prev) => prev.filter((_, i) => i !== rowIdx));
+
   const handleUpload = async () => {
-    const toUpload = rows.filter((r) => r.matchedId && r.status === 'pending');
-    if (!toUpload.length) return;
+    if (!rows.some((r) => r.checkedIds.length > 0 && r.status === 'pending')) return;
     setUploading(true);
 
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      if (!row.matchedId || !row.matchedName || row.status !== 'pending') continue;
+      if (!row.checkedIds.length || row.status !== 'pending') continue;
+
+      // Use the first checked product's SKU for the Cloudinary public_id
+      const firstProduct = products.find((p) => p.id === row.checkedIds[0]);
+      if (!firstProduct) continue;
 
       setRows((prev) => prev.map((r, idx) => idx === i ? { ...r, status: 'uploading' } : r));
-
       try {
-        const product = products.find((p) => p.id === row.matchedId);
-        const publicId = product?.sku || row.stem;
-        const result = await uploadToCloudinary(row.file, cloudinaryCloudName, cloudinaryUploadPreset, publicId);
-        const res = await api.superadmin.broadcastImage(row.matchedName, result.secure_url);
-        setRows((prev) => prev.map((r, idx) => idx === i ? { ...r, status: 'done', cloudUrl: result.secure_url, updatedCount: res.updated } : r));
+        const result = await uploadToCloudinary(row.file, cloudinaryCloudName, cloudinaryUploadPreset, firstProduct.sku);
+
+        // Broadcast by name for each checked product — updates all stores carrying that item
+        let totalUpdated = 0;
+        for (const id of row.checkedIds) {
+          const p = products.find((x) => x.id === id);
+          if (!p) continue;
+          const res = await api.superadmin.broadcastImage(p.name, result.secure_url);
+          totalUpdated += res.updated;
+        }
+
+        setRows((prev) => prev.map((r, idx) => idx === i ? { ...r, status: 'done', updatedCount: totalUpdated } : r));
       } catch {
         setRows((prev) => prev.map((r, idx) => idx === i ? { ...r, status: 'error' } : r));
       }
@@ -126,168 +180,211 @@ export function SuperAdminImageMatcher({ open, onClose, products, cloudinaryClou
     setUploading(false);
   };
 
-  const handleClose = () => {
-    rows.forEach((r) => URL.revokeObjectURL(r.preview));
-    setRows([]);
-    onClose();
-  };
+  const handleClose = () => { setRows([]); onClose(); };
 
-  const pendingCount = rows.filter((r) => r.matchedId && r.status === 'pending').length;
+  const pendingCount = rows.filter((r) => r.checkedIds.length > 0 && r.status === 'pending').length;
+  const doneCount    = rows.filter((r) => r.status === 'done').length;
 
-  const scoreColor = (score: number) =>
-    score >= 0.6 ? 'text-green-600 bg-green-500/10' :
-    score >= 0.35 ? 'text-amber-600 bg-amber-500/10' :
-    'text-red-600 bg-red-500/10';
-
-  const statusCell = (row: MatchRow) => {
-    if (row.status === 'uploading') return <Loader2 className="h-4 w-4 animate-spin text-orange-500 mx-auto" />;
-    if (row.status === 'done')      return <CheckCircle className="h-4 w-4 text-green-600 mx-auto" />;
-    if (row.status === 'error')     return <XCircle className="h-4 w-4 text-red-500 mx-auto" />;
-    if (row.matchedId) return (
-      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${scoreColor(row.score)}`}>
-        {Math.round(row.score * 100)}%
-      </span>
-    );
-    return <AlertTriangle className="h-4 w-4 text-muted-foreground/30 mx-auto" />;
-  };
+  const virtualItems  = rowVirtualizer.getVirtualItems();
+  const paddingTop    = virtualItems.length > 0 ? virtualItems[0].start : 0;
+  const paddingBottom = virtualItems.length > 0
+    ? rowVirtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end
+    : 0;
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>
-      <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col gap-4">
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col gap-3">
         <DialogHeader>
-          <DialogTitle className="font-black">Bulk Image Upload</DialogTitle>
+          <DialogTitle className="font-black">Bulk Image Upload — Master Inventory</DialogTitle>
           <p className="text-xs text-muted-foreground">
-            Filenames are fuzzy-matched to product names. Each upload propagates to every store carrying that item — no store selection needed.
+            Each image can update multiple products across all stores. Matches ≥30% are pre-selected. Use search to add more.
           </p>
         </DialogHeader>
 
         {noCloudinary && (
           <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-700 shrink-0">
             <Info className="h-4 w-4 shrink-0 mt-0.5" />
-            <span>Cloudinary is not configured. Go to the <strong>Pricing</strong> tab → <strong>Cloudinary Settings</strong> and save your cloud name and upload preset first.</span>
+            <span>Cloudinary is not configured. Go to <strong>Pricing → Cloudinary Settings</strong> and save your credentials first.</span>
           </div>
         )}
 
+        {/* Drop zone */}
         <div
-          className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors shrink-0 ${
+          className={`border-2 border-dashed rounded-xl p-5 text-center transition-colors shrink-0 ${
             noCloudinary ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:bg-muted/40'
           }`}
           onClick={() => !noCloudinary && fileInputRef.current?.click()}
           onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => { e.preventDefault(); if (!noCloudinary) handleFiles(e.dataTransfer.files); }}
+          onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
         >
-          <FolderOpen className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
+          <FolderOpen className="h-7 w-7 mx-auto mb-1.5 text-muted-foreground/50" />
           <p className="text-sm font-semibold">Drop images here or click to browse</p>
-          <p className="text-xs text-muted-foreground mt-1">JPG · PNG · WEBP — select multiple at once</p>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            onChange={(e) => handleFiles(e.target.files)}
-          />
+          <p className="text-xs text-muted-foreground mt-0.5">JPG, PNG, WEBP — select any number</p>
+          <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
         </div>
 
-        {rows.length > 0 && (
-          <div className="flex items-center gap-3 text-xs font-medium shrink-0">
-            <span className="text-muted-foreground">{rows.length} image{rows.length !== 1 ? 's' : ''}</span>
-            {stats.good > 0 && <span className="text-green-600">{stats.good} matched</span>}
-            {stats.low  > 0 && <span className="text-amber-600">{stats.low} low confidence</span>}
-            {stats.none > 0 && <span className="text-red-500">{stats.none} unmatched</span>}
-            {stats.done > 0 && <span className="text-orange-600 ml-auto">{stats.done} uploaded</span>}
+        {processing && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Matching filenames to products…
           </div>
         )}
 
         {rows.length > 0 && (
-          <div className="flex-1 overflow-y-auto border rounded-xl min-h-0">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-muted z-10">
-                <tr>
-                  <th className="text-left p-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Image</th>
-                  <th className="text-left p-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Filename</th>
-                  <th className="text-left p-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Matched Product</th>
-                  <th className="text-center p-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide w-16">Conf.</th>
-                  <th className="text-left p-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Result</th>
-                  <th className="w-8" />
-                </tr>
-              </thead>
-              <tbody className="divide-y">
-                {rows.map((row, idx) => (
-                  <tr key={idx} className="hover:bg-muted/20">
-                    <td className="p-2">
-                      <img src={row.preview} alt="" className="h-10 w-10 object-cover rounded-lg border" />
-                    </td>
-                    <td className="p-2 max-w-[160px]">
-                      <p className="text-xs font-medium truncate">{row.file.name}</p>
-                      <p className="text-[10px] text-muted-foreground truncate">{row.stem}</p>
-                    </td>
-                    <td className="p-2">
-                      <select
-                        value={row.matchedId ?? ''}
-                        disabled={row.status !== 'pending'}
-                        onChange={(e) => setMatch(idx, e.target.value || null)}
-                        className="w-full text-xs rounded-md border border-input bg-background px-2 py-1.5 disabled:opacity-60"
-                      >
-                        <option value="">— No match —</option>
-                        {row.candidates.length > 0 && (
-                          <optgroup label="Top matches">
-                            {row.candidates.map((c) => (
-                              <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
-                          </optgroup>
-                        )}
-                        <optgroup label="All products">
-                          {products
-                            .filter((p) => !row.candidates.some((c) => c.id === p.id))
-                            .map((p) => (
-                              <option key={p.id} value={p.id}>{p.name}</option>
-                            ))}
-                        </optgroup>
-                      </select>
-                    </td>
-                    <td className="p-2 text-center">{statusCell(row)}</td>
-                    <td className="p-2 text-xs">
-                      {row.status === 'done' && row.updatedCount !== undefined && (
-                        <span className="text-green-600 font-semibold">
-                          {row.updatedCount} store{row.updatedCount !== 1 ? 's' : ''} updated
-                        </span>
+          <div className="flex items-center gap-3 text-xs font-medium shrink-0 text-muted-foreground">
+            <span>{rows.length} images</span>
+            <span>·</span>
+            <span>{rows.reduce((s, r) => s + r.checkedIds.length, 0)} products will be updated across all stores</span>
+            {doneCount > 0 && <span className="text-orange-600 ml-auto">{doneCount} uploaded</span>}
+          </div>
+        )}
+
+        {/* Virtualised card list */}
+        {rows.length > 0 && (
+          <div ref={containerRef} className="flex-1 overflow-y-auto min-h-0">
+            <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative' }}>
+              {paddingTop > 0 && <div style={{ height: paddingTop }} />}
+              {virtualItems.map((vRow) => {
+                const row = rows[vRow.index];
+                const idx = vRow.index;
+
+                const searchResults = row.rowSearch.trim()
+                  ? products.filter((p) => {
+                      const q = row.rowSearch.toLowerCase();
+                      return !row.candidates.some((c) => c.id === p.id) &&
+                        (p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q));
+                    }).slice(0, 6)
+                  : [];
+
+                return (
+                  <div
+                    key={idx}
+                    data-index={idx}
+                    ref={rowVirtualizer.measureElement}
+                    style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${vRow.start}px)` }}
+                    className="pb-2"
+                  >
+                    <div className="border rounded-xl bg-card p-3 space-y-2.5">
+                      {/* Header */}
+                      <div className="flex items-start gap-3">
+                        <LazyPreview file={row.file} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold truncate">{row.file.name}</p>
+                          <p className="text-xs text-muted-foreground truncate">{row.stem}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {row.checkedIds.length > 0
+                              ? <span className="text-foreground font-semibold">{row.checkedIds.length}</span>
+                              : <span className="text-destructive font-semibold">0</span>}{' '}
+                            product{row.checkedIds.length !== 1 ? 's' : ''} selected
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {row.status === 'uploading' && <Loader2 className="h-4 w-4 animate-spin text-orange-600" />}
+                          {row.status === 'done' && (
+                            <span className="flex items-center gap-1 text-xs text-green-600 font-semibold">
+                              <CheckCircle className="h-4 w-4" />
+                              {row.updatedCount} store rows
+                            </span>
+                          )}
+                          {row.status === 'error' && <XCircle className="h-4 w-4 text-destructive" />}
+                          <button
+                            onClick={() => removeRow(idx)}
+                            disabled={row.status === 'uploading'}
+                            className="h-6 w-6 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Candidates */}
+                      {row.candidates.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {row.candidates.map((c) => {
+                            const checked = row.checkedIds.includes(c.id);
+                            return (
+                              <button
+                                key={c.id}
+                                onClick={() => row.status === 'pending' && toggleCheck(idx, c.id)}
+                                disabled={row.status !== 'pending'}
+                                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-medium transition-all ${
+                                  checked ? 'border-orange-400/60 bg-orange-50 text-foreground' : 'border-border bg-muted/30 text-muted-foreground'
+                                } disabled:cursor-default`}
+                              >
+                                <span className={`h-3 w-3 rounded-sm border flex items-center justify-center shrink-0 ${checked ? 'bg-orange-600 border-orange-600' : 'border-muted-foreground/40'}`}>
+                                  {checked && <svg viewBox="0 0 8 8" className="h-2 w-2 fill-white"><path d="M1 4l2 2 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" /></svg>}
+                                </span>
+                                <span className="truncate max-w-[160px]">{c.name}</span>
+                                <ScoreBadge score={c.score} />
+                              </button>
+                            );
+                          })}
+                        </div>
                       )}
-                      {row.status === 'error' && <span className="text-red-500">Upload failed — retry</span>}
-                    </td>
-                    <td className="p-2">
-                      <button
-                        onClick={() => removeRow(idx)}
-                        disabled={row.status === 'uploading'}
-                        className="h-6 w-6 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-30"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+
+                      {row.candidates.length === 0 && row.status === 'pending' && (
+                        <p className="text-xs text-muted-foreground italic">No automatic matches — use search to add products.</p>
+                      )}
+
+                      {/* Search */}
+                      {row.status === 'pending' && (
+                        <div className="relative">
+                          <div className="flex items-center gap-2 rounded-lg border bg-background px-2.5 py-1.5">
+                            <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <input
+                              type="text"
+                              placeholder="Search to add more products…"
+                              value={row.rowSearch}
+                              onChange={(e) => setRowSearch(idx, e.target.value)}
+                              className="flex-1 text-xs bg-transparent outline-none placeholder:text-muted-foreground/60"
+                            />
+                            {row.rowSearch && (
+                              <button onClick={() => setRowSearch(idx, '')} className="text-muted-foreground hover:text-foreground">
+                                <X className="h-3 w-3" />
+                              </button>
+                            )}
+                          </div>
+                          {searchResults.length > 0 && (
+                            <div className="absolute top-full left-0 right-0 mt-1 z-20 bg-card border rounded-lg shadow-lg overflow-hidden">
+                              {searchResults.map((p) => (
+                                <button
+                                  key={p.id}
+                                  onClick={() => addCandidate(idx, p)}
+                                  className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-muted transition-colors text-left"
+                                >
+                                  <Plus className="h-3 w-3 text-muted-foreground shrink-0" />
+                                  <span className="flex-1 truncate font-medium">{p.name}</span>
+                                  <span className="text-muted-foreground font-mono shrink-0">{p.sku}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {paddingBottom > 0 && <div style={{ height: paddingBottom }} />}
+            </div>
           </div>
         )}
 
+        {/* Footer */}
         <div className="flex items-center gap-3 shrink-0">
-          <button
-            onClick={handleClose}
-            className="px-4 py-2.5 rounded-lg border font-semibold text-sm hover:bg-muted transition-colors"
-          >
-            {stats.done > 0 ? 'Close' : 'Cancel'}
+          <button onClick={handleClose} className="px-4 py-2.5 rounded-lg border font-semibold text-sm hover:bg-muted transition-colors">
+            {doneCount > 0 ? 'Close' : 'Cancel'}
           </button>
           {rows.length > 0 && (
             <button
               onClick={handleUpload}
-              disabled={uploading || pendingCount === 0 || noCloudinary}
+              disabled={uploading || processing || pendingCount === 0 || noCloudinary}
               className="flex-1 py-2.5 rounded-lg font-bold text-sm flex items-center justify-center gap-2 bg-orange-600 text-white hover:bg-orange-700 disabled:opacity-50 transition-colors"
             >
               {uploading && <Loader2 className="h-4 w-4 animate-spin" />}
               {uploading
                 ? 'Uploading…'
-                : `Upload & Broadcast ${pendingCount} image${pendingCount !== 1 ? 's' : ''}`}
+                : `Upload ${pendingCount} image${pendingCount !== 1 ? 's' : ''} → broadcast to all stores`}
             </button>
           )}
         </div>

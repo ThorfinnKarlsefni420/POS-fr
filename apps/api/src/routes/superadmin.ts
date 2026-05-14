@@ -222,27 +222,33 @@ superadminRouter.post('/settings', async (c) => {
   return c.json({ ok: true });
 });
 
-// POST /superadmin/randomize-selling-prices — set sellingPrice = costPrice × random(1.10–1.35) for all items
-superadminRouter.post('/randomize-selling-prices', async (c) => {
-  const allItems = await prisma.item.findMany({ select: { id: true, costPrice: true } });
-  const CHUNK = 100;
+// POST /superadmin/set-vendor-prices — set sellingPrice = costPrice × (1 + markup%) with optional rounding
+superadminRouter.post('/set-vendor-prices', async (c) => {
+  const body = await c.req.json<{ markupPercent: number; roundTo?: number; onlyUnset?: boolean }>();
+  const { markupPercent, roundTo = 0, onlyUnset = false } = body;
+  if (isNaN(markupPercent) || markupPercent < 0) {
+    return c.json({ error: 'markupPercent is required and must be >= 0' }, 400);
+  }
+
+  const allItems = await prisma.item.findMany({
+    where: {
+      costPrice: { gt: 0 },
+      ...(onlyUnset ? { sellingPrice: { lte: 0 } } : {}),
+    },
+    select: { id: true, costPrice: true },
+  });
+
+  const CHUNK = 200;
   let updated = 0;
   for (let i = 0; i < allItems.length; i += CHUNK) {
     const chunk = allItems.slice(i, i + CHUNK);
-    await Promise.all(
-      chunk
-        .filter((item) => Number(item.costPrice) > 0)
-        .map((item) => {
-          const markup = 0.10 + Math.random() * 0.25; // 10–35%
-          return prisma.item.update({
-            where: { id: item.id },
-            data: {
-              sellingPrice: Math.round(Number(item.costPrice) * (1 + markup) * 100) / 100,
-            },
-          });
-        })
-    );
-    updated += chunk.filter((item) => Number(item.costPrice) > 0).length;
+    await Promise.all(chunk.map((item) => {
+      let price = Number(item.costPrice) * (1 + markupPercent / 100);
+      if (roundTo > 0) price = Math.ceil(price / roundTo) * roundTo;
+      else price = Math.round(price * 100) / 100;
+      return prisma.item.update({ where: { id: item.id }, data: { sellingPrice: price } });
+    }));
+    updated += chunk.length;
   }
   return c.json({ updated });
 });
