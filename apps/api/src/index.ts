@@ -23,7 +23,14 @@ const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
   : ['http://localhost:5173', 'http://localhost:4173', 'http://localhost:3000'];
 
-app.use('*', cors({ origin: allowedOrigins }));
+app.use('*', cors({
+  origin: (origin) => {
+    if (!origin) return origin;
+    if (allowedOrigins.includes(origin)) return origin;
+    if (origin.endsWith('.vercel.app')) return origin;
+    return undefined;
+  },
+}));
 
 app.route('/api/users', usersRouter);
 app.route('/api/shifts', shiftsRouter);
