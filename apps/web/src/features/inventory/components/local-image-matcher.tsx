@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { FolderOpen, CheckCircle, XCircle, Loader2, X, Search, Plus } from 'lucide-react';
 import { useProducts } from '@/hooks/use-products';

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { api, ApiUser, SuperAdminInventoryItem } from '@/lib/api';
+import { api, ApiUser } from '@/lib/api';
 import { useAuthStore } from '@/features/auth/store/use-auth-store';
 import { parseSpreadsheet } from '@/lib/file-parser';
 import { useSettingsStore } from '@/features/admin/store/use-settings-store';
@@ -10,7 +10,7 @@ import {
   Store, TrendingUp, ShoppingBag, Users,
   Plus, RefreshCw, LogOut, Loader2, X, CheckCircle2, AlertCircle,
   Pencil, Trash2, UserPlus, Shield, User, Package, Percent,
-  LayoutDashboard, Boxes, Settings2, Search, Upload, Image, SlidersHorizontal,
+  LayoutDashboard, Boxes, Settings2, Search, Upload, Image, SlidersHorizontal, Activity,
 } from 'lucide-react';
 
 function thumbUrl(url: string | null | undefined): string {
