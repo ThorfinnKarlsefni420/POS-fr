@@ -128,7 +128,7 @@ reportsRouter.get('/inventory', async (c) => {
   const [items, adjustments] = await Promise.all([
     prisma.item.findMany({
       where: storeId ? { storeId } : {},
-      select: { id: true, name: true, category: true, unit: true, currentStock: true, costPrice: true, nomadBitePrice: true },
+      select: { id: true, name: true, category: true, unit: true, currentStock: true, costPrice: true, sellingPrice: true },
     }),
     prisma.inventoryAdjustment.findMany({
       where: storeId ? { item: { storeId } } : {},
@@ -139,7 +139,7 @@ reportsRouter.get('/inventory', async (c) => {
   ]);
 
   const totalCostValue = items.reduce((s, i) => s + Number(i.costPrice) * Math.max(Number(i.currentStock), 0), 0);
-  const totalRetailValue = items.reduce((s, i) => s + Number(i.nomadBitePrice) * Math.max(Number(i.currentStock), 0), 0);
+  const totalRetailValue = items.reduce((s, i) => s + Number(i.sellingPrice) * Math.max(Number(i.currentStock), 0), 0);
 
   const lowStock = items
     .filter(i => Number(i.currentStock) > 0 && Number(i.currentStock) <= 5)
