@@ -83,6 +83,29 @@ enum CashLogType {
   PAY_OUT
 }
 
+// ─── VAT Engine ───────────────────────────────────────────────────────────────
+
+model VatClass {
+  id               String        @id
+  code             String        @unique  // 'STANDARD' | 'ZERO' | 'EXEMPT'
+  label            String
+  rate             Decimal       @db.Decimal(5, 4)  // 0.1600 / 0.0000
+  etimsCode        String                            // 'VAT' | 'ZERO' | 'NONTAXABLE'
+  kraRef           String?
+  canClaimInputVat Boolean       @default(false)
+  categoryVats     CategoryVat[]
+  items            Item[]
+}
+
+model CategoryVat {
+  id           String    @id @default(cuid())
+  category     String    @unique
+  vatClassId   String
+  vatClass     VatClass  @relation(fields: [vatClassId], references: [id])
+  hasOverrides Boolean   @default(false)
+  notes        String?
+}
+
 // ─── Inventory ───────────────────────────────────────────────────────────────
 
 model Item {
@@ -100,7 +123,14 @@ model Item {
   costPrice        Decimal   @db.Decimal(10, 2)
   sellingPrice     Decimal   @default(0) @db.Decimal(10, 2) // vendor's own retail price
   nomadBitePrice   Decimal   @db.Decimal(10, 2)
-  taxRate          Decimal   @default(0) @db.Decimal(5, 2)
+  taxRate          Decimal   @default(0) @db.Decimal(5, 2)  // legacy; derived from VatClass.rate * 100
+
+  // VAT
+  vatClassId           String?
+  vatClass             VatClass? @relation(fields: [vatClassId], references: [id])
+  vatOverrideReason    String?
+  etimsItemCode        String?
+  needsVatConfirmation Boolean   @default(false)
 
   // Metadata
   description      String?
@@ -128,21 +158,26 @@ model Item {
 // ─── Transactions ────────────────────────────────────────────────────────────
 
 model Transaction {
-  id          String      @id @default(cuid())
-  storeId     String
-  store       Store       @relation(fields: [storeId], references: [id])
-  shiftId     String
-  shift       Shift       @relation(fields: [shiftId], references: [id])
-  userId      String
-  user        User        @relation(fields: [userId], references: [id])
-  totalAmount Decimal     @db.Decimal(10, 2)
-  taxAmount   Decimal     @default(0) @db.Decimal(10, 2)
-  paymentType PaymentType
-  status      TxStatus    @default(COMPLETED)
-  lineItems   LineItem[]
-  creditSale  CreditSale?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id               String      @id @default(cuid())
+  storeId          String
+  store            Store       @relation(fields: [storeId], references: [id])
+  shiftId          String
+  shift            Shift       @relation(fields: [shiftId], references: [id])
+  userId           String
+  user             User        @relation(fields: [userId], references: [id])
+  totalAmount      Decimal     @db.Decimal(10, 2)
+  taxAmount        Decimal     @default(0) @db.Decimal(10, 2)  // total VAT extracted (Standard 16% lines only)
+  totalZeroKes     Decimal     @default(0) @db.Decimal(10, 2)  // sum of Zero-Rated line totals
+  totalExemptKes   Decimal     @default(0) @db.Decimal(10, 2)  // sum of Exempt line totals
+  paymentType      PaymentType
+  status           TxStatus    @default(COMPLETED)
+  etimsReceiptNo   String?
+  etimsQrCode      String?
+  submittedToEtims Boolean     @default(false)
+  lineItems        LineItem[]
+  creditSale       CreditSale?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
 }
 
 enum PaymentType {
@@ -170,6 +205,11 @@ model LineItem {
   discountReason String?
   isReturned    Boolean     @default(false)
   isDamaged     Boolean     @default(false)
+  // VAT snapshot — values at time of sale, never recomputed
+  vatRate       Decimal     @default(0)    @db.Decimal(5, 4)   // 0.1600 or 0.0000
+  etimsCode     String      @default("VAT")                    // 'VAT' | 'ZERO' | 'NONTAXABLE'
+  vatAmount     Decimal     @default(0)    @db.Decimal(10, 2)  // per-unit VAT extracted
+  netAmount     Decimal     @default(0)    @db.Decimal(10, 2)  // per-unit net excl. VAT
   createdAt     DateTime    @default(now())
 }
 

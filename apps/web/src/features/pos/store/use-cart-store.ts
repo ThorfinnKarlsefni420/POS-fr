@@ -58,13 +58,28 @@ export const useCartStore = create<CartState>((set, get) => ({
     const { items } = get();
     let subtotal = 0;
     let taxAmount = 0;
+    let totalZeroKes = 0;
+    let totalExemptKes = 0;
     for (const item of items) {
       const price = getEffectivePrice(item);
       const lineTotal = price * item.quantity;
       subtotal += lineTotal;
-      taxAmount += lineTotal * (item.taxRate / 100);
+      // Prices are VAT-inclusive (KRA standard). Extract VAT; never add on top.
+      if (item.etimsCode === 'VAT') {
+        taxAmount += lineTotal * 0.16 / 1.16;
+      } else if (item.etimsCode === 'ZERO') {
+        totalZeroKes += lineTotal;
+      } else {
+        totalExemptKes += lineTotal;
+      }
     }
-    return { subtotal, taxAmount, total: subtotal + taxAmount };
+    return {
+      subtotal,
+      taxAmount: Math.round(taxAmount * 100) / 100,
+      totalZeroKes: Math.round(totalZeroKes * 100) / 100,
+      totalExemptKes: Math.round(totalExemptKes * 100) / 100,
+      total: subtotal,  // total = subtotal; VAT is extracted from inclusive price, not added
+    };
   },
 
 }));

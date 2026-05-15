@@ -181,6 +181,113 @@ reportsRouter.get('/inventory', async (c) => {
   });
 });
 
+// ─── VAT Report ───────────────────────────────────────────────────────────────
+
+reportsRouter.get('/vat', async (c) => {
+  const { storeId } = await getStoreContext(c);
+  const { from, to } = dateRange(c.req.query('from'), c.req.query('to'));
+
+  const transactions = await prisma.transaction.findMany({
+    where: {
+      createdAt: { gte: from, lte: to },
+      status: 'COMPLETED',
+      ...(storeId ? { storeId } : {}),
+    },
+    select: {
+      id: true,
+      totalAmount: true,
+      taxAmount: true,
+      totalZeroKes: true,
+      totalExemptKes: true,
+      submittedToEtims: true,
+      createdAt: true,
+      lineItems: {
+        select: {
+          soldPrice: true,
+          quantity: true,
+          vatRate: true,
+          vatAmount: true,
+          netAmount: true,
+          etimsCode: true,
+          item: { select: { category: true } },
+        },
+      },
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  // Top-level totals
+  let totalOutputVat = 0;     // VAT collected on Standard 16% sales
+  let totalZeroRated = 0;     // Zero-Rated sales value
+  let totalExempt = 0;        // Exempt sales value
+  let totalTaxableSales = 0;  // Standard 16% line totals (incl. VAT)
+  let pendingEtims = 0;
+
+  // Per-category VAT breakdown
+  const catMap = new Map<string, { taxable: number; vat: number; zero: number; exempt: number }>();
+
+  for (const tx of transactions) {
+    totalOutputVat  += Number(tx.taxAmount);
+    totalZeroRated  += Number(tx.totalZeroKes);
+    totalExempt     += Number(tx.totalExemptKes);
+    if (!tx.submittedToEtims) pendingEtims++;
+
+    for (const li of tx.lineItems) {
+      const lineTotal = Number(li.soldPrice) * Number(li.quantity);
+      const lineVat   = Number(li.vatAmount) * Number(li.quantity);
+      const cat = li.item.category || 'Uncategorized';
+      const cur = catMap.get(cat) ?? { taxable: 0, vat: 0, zero: 0, exempt: 0 };
+
+      if (li.etimsCode === 'VAT') {
+        totalTaxableSales += lineTotal;
+        cur.taxable += lineTotal;
+        cur.vat     += lineVat;
+      } else if (li.etimsCode === 'ZERO') {
+        cur.zero += lineTotal;
+      } else {
+        cur.exempt += lineTotal;
+      }
+      catMap.set(cat, cur);
+    }
+  }
+
+  // Monthly breakdown for VAT return filing
+  const monthMap = new Map<string, { outputVat: number; taxableSales: number; zeroRated: number; exempt: number; txCount: number }>();
+  for (const tx of transactions) {
+    const month = tx.createdAt.toISOString().slice(0, 7); // 'YYYY-MM'
+    const cur = monthMap.get(month) ?? { outputVat: 0, taxableSales: 0, zeroRated: 0, exempt: 0, txCount: 0 };
+    cur.outputVat    += Number(tx.taxAmount);
+    cur.taxableSales += Number(tx.totalAmount) - Number(tx.totalZeroKes) - Number(tx.totalExemptKes);
+    cur.zeroRated    += Number(tx.totalZeroKes);
+    cur.exempt       += Number(tx.totalExemptKes);
+    cur.txCount++;
+    monthMap.set(month, cur);
+  }
+
+  const byCategory = [...catMap.entries()]
+    .map(([category, d]) => ({ category, ...d }))
+    .sort((a, b) => b.vat - a.vat);
+
+  const byMonth = [...monthMap.entries()]
+    .map(([month, d]) => ({ month, ...d }))
+    .sort((a, b) => a.month.localeCompare(b.month));
+
+  return c.json({
+    from: from.toISOString(),
+    to: to.toISOString(),
+    transactionCount: transactions.length,
+    // VAT return figures
+    totalOutputVat:    Math.round(totalOutputVat    * 100) / 100,
+    totalTaxableSales: Math.round(totalTaxableSales * 100) / 100,
+    totalZeroRated:    Math.round(totalZeroRated    * 100) / 100,
+    totalExempt:       Math.round(totalExempt       * 100) / 100,
+    netVatPayable:     Math.round(totalOutputVat    * 100) / 100, // input VAT claimable added once supplier invoices tracked
+    pendingEtims,
+    byCategory,
+    byMonth,
+  });
+});
+
 // ─── CSV Export ───────────────────────────────────────────────────────────────
 
 reportsRouter.get('/export/sales', async (c) => {

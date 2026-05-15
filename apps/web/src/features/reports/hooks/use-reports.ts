@@ -21,3 +21,10 @@ export function useInventoryReport() {
     queryFn: () => api.reports.inventory(),
   });
 }
+
+export function useVatReport(from: string, to: string) {
+  return useQuery({
+    queryKey: ['reports', 'vat', from, to],
+    queryFn: () => api.reports.vat(from, to),
+  });
+}

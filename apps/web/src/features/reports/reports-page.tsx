@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { SalesReport } from './components/sales-report';
 import { ShiftReport } from './components/shift-report';
 import { InventoryReport } from './components/inventory-report';
+import { VatReport } from './components/vat-report';
 
-type Tab = 'sales' | 'shifts' | 'inventory';
+type Tab = 'sales' | 'shifts' | 'inventory' | 'vat';
 type Preset = '7d' | '30d' | '3m' | '1y';
 
 function getRange(preset: Preset): { from: string; to: string } {
@@ -30,12 +31,26 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'sales', label: 'Sales' },
   { key: 'shifts', label: 'Shifts' },
   { key: 'inventory', label: 'Inventory' },
+  { key: 'vat', label: 'VAT Return' },
 ];
+
+function getVatMonthRange(monthOffset: number): { from: string; to: string; label: string } {
+  const d = new Date();
+  d.setMonth(d.getMonth() + monthOffset);
+  const year = d.getFullYear();
+  const month = d.getMonth();
+  const from = new Date(year, month, 1).toISOString().split('T')[0];
+  const to   = new Date(year, month + 1, 0).toISOString().split('T')[0];
+  const label = d.toLocaleString('en-KE', { month: 'long', year: 'numeric' });
+  return { from, to, label };
+}
 
 export function ReportsPage() {
   const [tab, setTab] = useState<Tab>('sales');
   const [preset, setPreset] = useState<Preset>('30d');
+  const [vatMonthOffset, setVatMonthOffset] = useState(0);
   const range = getRange(preset);
+  const vatRange = getVatMonthRange(vatMonthOffset);
 
   return (
     <div className="flex flex-col h-full p-6 gap-5 overflow-auto">
@@ -46,8 +61,8 @@ export function ReportsPage() {
           <p className="text-sm text-muted-foreground">Sales, shifts, and inventory analytics</p>
         </div>
 
-        {/* Date range — hidden for inventory tab */}
-        {tab !== 'inventory' && (
+        {/* Date range — hidden for inventory; VAT gets its own month picker */}
+        {tab !== 'inventory' && tab !== 'vat' && (
           <div className="flex gap-1 bg-muted p-1 rounded-lg">
             {PRESETS.map(p => (
               <button
@@ -61,6 +76,25 @@ export function ReportsPage() {
                 {p.label}
               </button>
             ))}
+          </div>
+        )}
+        {tab === 'vat' && (
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setVatMonthOffset(o => o - 1)}
+              className="px-2 py-1.5 rounded-md text-xs font-semibold hover:bg-muted transition-colors"
+            >
+              ‹
+            </button>
+            <span className="text-sm font-semibold min-w-[140px] text-center">{vatRange.label}</span>
+            <button
+              onClick={() => setVatMonthOffset(o => Math.min(o + 1, 0))}
+              className="px-2 py-1.5 rounded-md text-xs font-semibold hover:bg-muted transition-colors"
+              disabled={vatMonthOffset >= 0}
+              style={{ opacity: vatMonthOffset >= 0 ? 0.3 : 1 }}
+            >
+              ›
+            </button>
           </div>
         )}
       </div>
@@ -86,6 +120,7 @@ export function ReportsPage() {
         {tab === 'sales' && <SalesReport from={range.from} to={range.to} />}
         {tab === 'shifts' && <ShiftReport from={range.from} to={range.to} />}
         {tab === 'inventory' && <InventoryReport />}
+        {tab === 'vat' && <VatReport from={vatRange.from} to={vatRange.to} />}
       </div>
     </div>
   );

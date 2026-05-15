@@ -170,6 +170,7 @@ export const api = {
     sales: (from: string, to: string) => req<SalesReport>(`/reports/sales?from=${from}&to=${to}`),
     shifts: (from: string, to: string) => req<ShiftsReport>(`/reports/shifts?from=${from}&to=${to}`),
     inventory: () => req<InventoryReport>('/reports/inventory'),
+    vat: (from: string, to: string) => req<VatReport>(`/reports/vat?from=${from}&to=${to}`),
     exportCsv: async (endpoint: string, filename: string) => {
       const user = useAuthStore.getState().user;
       const headers: Record<string, string> = {};
@@ -247,6 +248,7 @@ export interface ApiItem {
   sellingPrice: string | number;
   nomadBitePrice: string | number;
   taxRate: string | number;
+  etimsCode?: string;  // 'VAT' | 'ZERO' | 'NONTAXABLE' — resolved server-side from VatClass
   isFractional: boolean;
   currentStock: string | number;
   description?: string;
@@ -374,6 +376,20 @@ export interface InventoryReport {
   recentAdjustments: Array<{ itemName: string; quantity: number; reasonCode: string; note: string; createdAt: string }>;
 }
 
+export interface VatReport {
+  from: string;
+  to: string;
+  transactionCount: number;
+  totalOutputVat: number;
+  totalTaxableSales: number;
+  totalZeroRated: number;
+  totalExempt: number;
+  netVatPayable: number;
+  pendingEtims: number;
+  byCategory: Array<{ category: string; taxable: number; vat: number; zero: number; exempt: number }>;
+  byMonth: Array<{ month: string; outputVat: number; taxableSales: number; zeroRated: number; exempt: number; txCount: number }>;
+}
+
 export function apiItemToProduct(item: ApiItem) {
   return {
     id: item.id,
@@ -387,6 +403,7 @@ export function apiItemToProduct(item: ApiItem) {
     sellingPrice: Number(item.sellingPrice),
     nomadBitePrice: Number(item.nomadBitePrice),
     taxRate: Number(item.taxRate),
+    etimsCode: item.etimsCode ?? 'VAT',
     isFractional: item.isFractional,
     currentStock: Number(item.currentStock),
     description: item.description,

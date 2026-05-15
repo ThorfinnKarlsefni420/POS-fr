@@ -18,7 +18,7 @@ export function Cart() {
   const [discountReason, setDiscountReason] = useState('');
   const [idleSecondsLeft, setIdleSecondsLeft] = useState<number | null>(null);
 
-  const { subtotal, taxAmount, total } = totals();
+  const { subtotal, taxAmount, totalZeroKes, totalExemptKes, total } = totals();
 
   // Cart idle auto-clear — 15 min (Phase 2.2)
   const clearTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -146,6 +146,16 @@ export function Cart() {
                         <p className="text-xs font-bold" style={{ color: 'var(--primary)' }}>
                           KES {Number(price).toLocaleString()}
                         </p>
+                        {/* KRA VAT class tag */}
+                        <span className="text-[9px] font-bold px-1 py-0.5 rounded border leading-tight" style={
+                          item.etimsCode === 'VAT'
+                            ? { borderColor: 'oklch(0.55 0.2 25 / 0.3)', color: 'oklch(0.45 0.18 25)', background: 'oklch(0.55 0.2 25 / 0.06)' }
+                            : item.etimsCode === 'ZERO'
+                              ? { borderColor: 'oklch(0.5 0.15 145 / 0.3)', color: 'oklch(0.4 0.14 145)', background: 'oklch(0.5 0.15 145 / 0.06)' }
+                              : { borderColor: 'oklch(0.55 0.05 240 / 0.3)', color: 'oklch(0.45 0.05 240)', background: 'oklch(0.55 0.05 240 / 0.06)' }
+                        }>
+                          {item.etimsCode === 'VAT' ? 'V' : item.etimsCode === 'ZERO' ? 'Z' : 'E'}
+                        </span>
                         {isDiscounted && (
                           <>
                             <span className="text-[10px] line-through text-muted-foreground">
@@ -269,8 +279,20 @@ export function Cart() {
             </div>
             {taxAmount > 0 && (
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>VAT</span>
+                <span>VAT 16% [V] <span className="opacity-60">(incl.)</span></span>
                 <span>KES {taxAmount.toFixed(2)}</span>
+              </div>
+            )}
+            {totalZeroKes > 0 && (
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Zero-Rated [Z]</span>
+                <span>KES {totalZeroKes.toLocaleString()}</span>
+              </div>
+            )}
+            {totalExemptKes > 0 && (
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Exempt [E]</span>
+                <span>KES {totalExemptKes.toLocaleString()}</span>
               </div>
             )}
           </div>

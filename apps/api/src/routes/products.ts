@@ -2,24 +2,57 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { prisma } from '../lib/prisma';
 import { getStoreContext } from '../middleware/store-context';
+import { resolveVatClass, VatClassData } from '../lib/vat-engine';
 
 export const productsRouter = new Hono();
+
+// Load all CategoryVat rows once and return a category → effective etimsCode map
+async function loadCatVatMap() {
+  const rows = await prisma.categoryVat.findMany({
+    include: { vatClass: { select: { id: true, code: true, rate: true, etimsCode: true } } },
+  });
+  return new Map(rows.map((r) => [r.category, r.vatClass]));
+}
+
+function toVc(vc: { id: string; code: string; rate: unknown; etimsCode: string } | null): VatClassData | null {
+  if (!vc) return null;
+  return { id: vc.id, code: vc.code as VatClassData['code'], rate: Number(vc.rate), etimsCode: vc.etimsCode };
+}
+
+function withEtimsCode<T extends { category: string; vatClass: { id: string; code: string; rate: unknown; etimsCode: string } | null }>(
+  item: T,
+  catVatMap: Map<string, { id: string; code: string; rate: unknown; etimsCode: string } | null>,
+): Omit<T, 'vatClass'> & { etimsCode: string } {
+  const vc = resolveVatClass(toVc(item.vatClass), toVc(catVatMap.get(item.category) ?? null));
+  const { vatClass: _vc, ...rest } = item;
+  return { ...rest, etimsCode: vc.etimsCode };
+}
 
 // List all items
 productsRouter.get('/', async (c) => {
   const { storeId } = await getStoreContext(c);
-  const items = await prisma.item.findMany({
-    where: storeId ? { storeId } : {},
-    orderBy: { category: 'asc' },
-  });
-  return c.json(items);
+  const [items, catVatMap] = await Promise.all([
+    prisma.item.findMany({
+      where: storeId ? { storeId } : {},
+      include: { vatClass: { select: { id: true, code: true, rate: true, etimsCode: true } } },
+      orderBy: { category: 'asc' },
+    }),
+    loadCatVatMap(),
+  ]);
+  return c.json(items.map((item) => withEtimsCode(item, catVatMap)));
 });
 
 // Get single item
 productsRouter.get('/:id', async (c) => {
-  const item = await prisma.item.findUnique({ where: { id: c.req.param('id') } });
+  const [item, catVatMap] = await Promise.all([
+    prisma.item.findUnique({
+      where: { id: c.req.param('id') },
+      include: { vatClass: { select: { id: true, code: true, rate: true, etimsCode: true } } },
+    }),
+    loadCatVatMap(),
+  ]);
   if (!item) return c.json({ error: 'Not found' }, 404);
-  return c.json(item);
+  return c.json(withEtimsCode(item, catVatMap));
 });
 
 // Create item

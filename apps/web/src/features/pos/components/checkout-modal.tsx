@@ -21,7 +21,7 @@ export function CheckoutModal({ open, onClose, total }: Props) {
   const [savedOffline, setSavedOffline] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<TransactionResult | null>(null);
-  const { subtotal, taxAmount } = totals();
+  const { subtotal, taxAmount, totalZeroKes, totalExemptKes } = totals();
   const queryClient = useQueryClient();
 
   const zeroStockItems = items.filter((i) => i.currentStock <= 0);
@@ -99,23 +99,29 @@ export function CheckoutModal({ open, onClose, total }: Props) {
               <div className="border-t border-dashed pt-3 space-y-1.5">
                 {(result.lineItems ?? items.map((i) => ({
                   itemId: i.id,
-                  item: { name: i.name } as never,
+                  item: { name: i.name, etimsCode: i.etimsCode } as never,
                   quantity: i.quantity,
                   soldPrice: i.overridePrice ?? i.nomadBitePrice,
                   discountReason: i.discountReason,
-                }))).map((li, idx) => (
-                  <div key={idx} className="flex justify-between text-xs gap-2">
-                    <div className="min-w-0">
-                      <span className="font-medium">{li.item?.name ?? 'Item'}</span>
-                      {li.discountReason && (
-                        <span className="text-[10px] text-muted-foreground ml-1">({li.discountReason})</span>
-                      )}
+                  etimsCode: i.etimsCode,
+                }))).map((li, idx) => {
+                  const code = (li as { etimsCode?: string }).etimsCode ?? li.item?.etimsCode ?? 'VAT';
+                  const tag = code === 'VAT' ? '[V]' : code === 'ZERO' ? '[Z]' : '[E]';
+                  return (
+                    <div key={idx} className="flex justify-between text-xs gap-2">
+                      <div className="min-w-0 flex items-baseline gap-1">
+                        <span className="font-medium">{li.item?.name ?? 'Item'}</span>
+                        <span className="text-[9px] text-muted-foreground font-mono shrink-0">{tag}</span>
+                        {li.discountReason && (
+                          <span className="text-[10px] text-muted-foreground">({li.discountReason})</span>
+                        )}
+                      </div>
+                      <span className="shrink-0 font-mono">
+                        {Number(li.quantity)} × {Number(li.soldPrice).toLocaleString()} = KES {(Number(li.quantity) * Number(li.soldPrice)).toLocaleString()}
+                      </span>
                     </div>
-                    <span className="shrink-0 font-mono">
-                      {Number(li.quantity)} × {Number(li.soldPrice).toLocaleString()} = KES {(Number(li.quantity) * Number(li.soldPrice)).toLocaleString()}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="border-t border-dashed pt-3 space-y-1">
@@ -123,11 +129,27 @@ export function CheckoutModal({ open, onClose, total }: Props) {
                   <span>Subtotal</span><span>KES {subtotal.toLocaleString()}</span>
                 </div>
                 {taxAmount > 0 && (
+                  <>
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Taxable (A) net</span>
+                      <span>KES {(subtotal - taxAmount - totalZeroKes - totalExemptKes).toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>VAT 16% on (A)</span><span>KES {taxAmount.toFixed(2)}</span>
+                    </div>
+                  </>
+                )}
+                {totalZeroKes > 0 && (
                   <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>VAT</span><span>KES {taxAmount.toFixed(2)}</span>
+                    <span>Zero-Rated (B)</span><span>KES {totalZeroKes.toLocaleString()}</span>
                   </div>
                 )}
-                <div className="flex justify-between font-black text-sm">
+                {totalExemptKes > 0 && (
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Exempt (C)</span><span>KES {totalExemptKes.toLocaleString()}</span>
+                  </div>
+                )}
+                <div className="flex justify-between font-black text-sm border-t border-dashed pt-1">
                   <span>TOTAL</span>
                   <span style={{ color: 'var(--primary)' }}>KES {total.toLocaleString()}</span>
                 </div>
@@ -140,6 +162,10 @@ export function CheckoutModal({ open, onClose, total }: Props) {
                   </div>
                 )}
               </div>
+
+              <p className="text-[9px] text-muted-foreground border-t border-dashed pt-2 text-center leading-relaxed">
+                [V]=Taxable 16%&nbsp;&nbsp;[Z]=Zero-Rated&nbsp;&nbsp;[E]=Exempt
+              </p>
 
               <p className="text-center text-[10px] text-muted-foreground border-t border-dashed pt-3">
                 Thank you for shopping at {storeName}!
@@ -247,8 +273,20 @@ export function CheckoutModal({ open, onClose, total }: Props) {
                 </div>
                 {taxAmount > 0 && (
                   <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>VAT</span>
+                    <span>VAT 16% [V] <span className="opacity-60">(incl.)</span></span>
                     <span>KES {taxAmount.toFixed(2)}</span>
+                  </div>
+                )}
+                {totalZeroKes > 0 && (
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Zero-Rated [Z]</span>
+                    <span>KES {totalZeroKes.toLocaleString()}</span>
+                  </div>
+                )}
+                {totalExemptKes > 0 && (
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Exempt [E]</span>
+                    <span>KES {totalExemptKes.toLocaleString()}</span>
                   </div>
                 )}
                 <div className="flex justify-between font-black text-base border-t pt-2">

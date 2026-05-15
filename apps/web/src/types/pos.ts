@@ -10,6 +10,7 @@ export interface Product {
   sellingPrice: number;
   nomadBitePrice: number;
   taxRate: number;
+  etimsCode: string;  // 'VAT' | 'ZERO' | 'NONTAXABLE' — resolved from VatClass
   isFractional: boolean;
   currentStock: number;
   description?: string;
@@ -29,6 +30,8 @@ export type PaymentType = 'CASH';
 
 export interface CartTotals {
   subtotal: number;
-  taxAmount: number;
-  total: number;
+  taxAmount: number;     // Standard 16% VAT extracted (already included in subtotal)
+  totalZeroKes: number;  // sum of Zero-Rated line totals
+  totalExemptKes: number;
+  total: number;         // equals subtotal — prices are VAT-inclusive
 }

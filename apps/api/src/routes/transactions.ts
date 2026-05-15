@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { prisma } from '../lib/prisma';
 import { getStoreContext } from '../middleware/store-context';
 import { submitEtimsInvoice } from '../lib/etims';
+import { resolveVatClass, calcLineVat, calcReceiptTotals, VatClassData } from '../lib/vat-engine';
 
 export const transactionsRouter = new Hono();
 
@@ -25,12 +26,42 @@ transactionsRouter.post('/', async (c) => {
     return c.json({ error: 'vendorId is required for credit sales' }, 400);
   }
 
-  // Optimistic locking: snapshot stock before checkout commits (Phase 1.4)
-  const preCheckStocks = await prisma.item.findMany({
-    where: { id: { in: body.items.map((i) => i.id) } },
-    select: { id: true, name: true, currentStock: true },
+  // Load items: stock snapshot + VAT class for server-side VAT resolution
+  const itemIds = body.items.map((i) => i.id);
+  const itemRecords = await prisma.item.findMany({
+    where: { id: { in: itemIds } },
+    select: {
+      id: true,
+      name: true,
+      category: true,
+      currentStock: true,
+      vatClassId: true,
+      vatClass: { select: { id: true, code: true, rate: true, etimsCode: true } },
+    },
   });
-  const stockMap = new Map(preCheckStocks.map((s) => [s.id, s]));
+  const stockMap = new Map(itemRecords.map((s) => [s.id, s]));
+
+  // Load CategoryVat for every category that appears in this cart (one query)
+  const categories = [...new Set(itemRecords.map((i) => i.category))];
+  const categoryVats = await prisma.categoryVat.findMany({
+    where: { category: { in: categories } },
+    include: { vatClass: { select: { id: true, code: true, rate: true, etimsCode: true } } },
+  });
+  const catVatMap = new Map(categoryVats.map((cv) => [cv.category, cv.vatClass]));
+
+  // Resolve VAT per line item
+  const lineVatResults = body.items.map((item) => {
+    const rec = stockMap.get(item.id);
+    const itemVc = rec?.vatClass
+      ? { ...rec.vatClass, code: rec.vatClass.code as VatClassData['code'], rate: Number(rec.vatClass.rate) }
+      : null;
+    const catVc = rec?.category && catVatMap.get(rec.category)
+      ? (() => { const cv = catVatMap.get(rec.category)!; return { ...cv, code: cv.code as VatClassData['code'], rate: Number(cv.rate) }; })()
+      : null;
+    const vc = resolveVatClass(itemVc, catVc);
+    return { item, vatResult: calcLineVat(item.soldPrice, item.quantity, vc) };
+  });
+  const receiptTotals = calcReceiptTotals(lineVatResults.map((l) => l.vatResult));
 
   // Items whose stock changed (went below requested qty) since the cart was filled
   const stockDiscrepancies = body.items
@@ -41,6 +72,9 @@ transactionsRouter.post('/', async (c) => {
         : null;
     })
     .filter(Boolean);
+
+  // Server-computed VAT overrides any frontend-supplied taxAmount
+  const computedTaxAmount = receiptTotals.totalVatKes;
 
   // Use session userId/shiftId when provided, fall back to auto-create for backward compat
   let user = body.userId
@@ -73,16 +107,22 @@ transactionsRouter.post('/', async (c) => {
       userId: user.id,
       shiftId: shift.id,
       totalAmount: body.totalAmount,
-      taxAmount: body.taxAmount,
+      taxAmount: computedTaxAmount,
+      totalZeroKes: receiptTotals.totalZeroKes,
+      totalExemptKes: receiptTotals.totalExemptKes,
       paymentType: body.paymentType,
       status: 'COMPLETED',
       lineItems: {
-        create: body.items.map((item) => ({
+        create: lineVatResults.map(({ item, vatResult }) => ({
           itemId: item.id,
           quantity: item.quantity,
           originalPrice: item.originalPrice,
           soldPrice: item.soldPrice,
           discountReason: item.discountReason ?? null,
+          vatRate: vatResult.vatRate,
+          etimsCode: vatResult.etimsCode,
+          vatAmount: vatResult.vatAmount,
+          netAmount: vatResult.netAmount,
         })),
       },
     },
@@ -107,7 +147,7 @@ transactionsRouter.post('/', async (c) => {
 
   // Fetch parent relationships for break-bulk (Phase 2.1)
   const itemMeta = await prisma.item.findMany({
-    where: { id: { in: body.items.map((i) => i.id) } },
+    where: { id: { in: itemIds } },
     select: { id: true, parentItemId: true, boxQty: true },
   });
   const metaMap = new Map(itemMeta.map((m) => [m.id, m]));
@@ -149,14 +189,18 @@ transactionsRouter.post('/', async (c) => {
     transactionId: transaction.id,
     storeId,
     totalAmount: body.totalAmount,
-    taxAmount: body.taxAmount,
+    taxAmount: computedTaxAmount,
+    totalZeroKes: receiptTotals.totalZeroKes,
+    totalExemptKes: receiptTotals.totalExemptKes,
     paymentType: body.paymentType,
     issuedAt: transaction.createdAt,
-    items: body.items.map((item) => ({
+    items: lineVatResults.map(({ item, vatResult }) => ({
       itemName: stockMap.get(item.id)?.name ?? item.id,
       quantity: item.quantity,
-      unitPrice: item.soldPrice,
-      taxRate: 0, // TODO: pull from Item.taxRate once eTIMS is live
+      unitPriceIncl: item.soldPrice,
+      unitPriceNet: vatResult.netAmount,
+      vatAmount: vatResult.vatAmount,
+      taxType: vatResult.etimsCode,
     })),
   }).catch((err) => console.error('[eTIMS] submission error:', err));
 

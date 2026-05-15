@@ -6,8 +6,10 @@
 export interface EtimsLineItem {
   itemName: string;
   quantity: number;
-  unitPrice: number;
-  taxRate: number;
+  unitPriceIncl: number;  // VAT-inclusive shelf price
+  unitPriceNet: number;   // net excl. VAT (sent to eTIMS as unitPrice)
+  vatAmount: number;      // per-unit VAT extracted
+  taxType: string;        // 'VAT' | 'ZERO' | 'NONTAXABLE'
 }
 
 export interface EtimsInvoice {
@@ -15,6 +17,8 @@ export interface EtimsInvoice {
   storeId: string;
   totalAmount: number;
   taxAmount: number;
+  totalZeroKes: number;
+  totalExemptKes: number;
   paymentType: string;
   items: EtimsLineItem[];
   issuedAt: Date;
@@ -50,12 +54,19 @@ export async function submitEtimsInvoice(invoice: EtimsInvoice): Promise<EtimsRe
     totalAmount: invoice.totalAmount,
     paymentType: invoice.paymentType,
     invoiceDate: invoice.issuedAt.toISOString(),
+    taxableAmount: invoice.items
+      .filter((i) => i.taxType === 'VAT')
+      .reduce((s, i) => s + i.unitPriceNet * i.quantity, 0),
+    taxAmount: invoice.taxAmount,
+    zeroRatedAmount: invoice.totalZeroKes,
+    exemptAmount: invoice.totalExemptKes,
     itemList: invoice.items.map((i) => ({
       itemNm: i.itemName,
       qty: i.quantity,
-      unitPrice: i.unitPrice,
-      taxRate: i.taxRate,
-      taxAmount: (i.quantity * i.unitPrice * i.taxRate) / 100,
+      unitPrice: i.unitPriceNet,  // eTIMS requires net (excl. VAT) price
+      taxType: i.taxType,
+      taxAmount: i.vatAmount * i.quantity,
+      totalAmount: i.unitPriceIncl * i.quantity,
     })),
   };
 
