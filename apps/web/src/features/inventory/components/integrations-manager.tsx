@@ -187,8 +187,6 @@ function SetupWizard({ onClose }: WizardProps) {
     }
   };
 
-  const typeInfo = INTEGRATION_TYPES.find((t) => t.value === type);
-
   return (
     <div className="space-y-6">
       {/* Step indicator */}

@@ -35,7 +35,7 @@ function isDbNameRow(row: string[]): boolean {
 }
 
 // Matches "AJAB 24*1KG", "BROOKSIDE 6*2.5KG", "ALWAYS 16*7 BLUE", "20*500G"
-function inferFromDbName(dbName: string): { l2Name?: string; l2Qty?: number } {
+function inferFromDbName(dbName: string): { l1Name?: string; l1Qty?: number; l2Name?: string; l2Qty?: number } {
   const m = dbName.match(/\b(\d+)\s*[*×xX]\s*[\d.]+/i);
   if (m) {
     const qty = parseInt(m[1], 10);
@@ -244,6 +244,7 @@ function rowsToVendorCatalogueProducts(rows: Row[], serviceFeePercent: number): 
       taxRate,
       isFractional: false,
       currentStock,
+      etimsCode: 'NONTAXABLE',
       imageUrl: DEFAULT_PRODUCT_IMAGE,
       packagingTiers: packagingTiers.length > 0 ? packagingTiers : undefined,
     });
@@ -435,6 +436,7 @@ function rowsToProducts(rows: Row[], serviceFeePercent: number): ParseResult {
       unit: cols.unitCol ? row[cols.unitCol]?.toString().trim() ?? '' : '',
       boxQty: '',
       costPrice, sellingPrice, nomadBitePrice: 0, taxRate, isFractional: false, currentStock,
+      etimsCode: 'NONTAXABLE',
       imageUrl: fileImage || DEFAULT_PRODUCT_IMAGE,
       packagingTiers: packagingTiers.length > 0 ? packagingTiers : undefined,
     });
