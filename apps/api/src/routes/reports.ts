@@ -288,6 +288,79 @@ reportsRouter.get('/vat', async (c) => {
   });
 });
 
+// ─── Gross Profit Report ─────────────────────────────────────────────────────
+
+reportsRouter.get('/profit', async (c) => {
+  const { storeId } = await getStoreContext(c);
+  const { from, to } = dateRange(c.req.query('from'), c.req.query('to'));
+
+  const lineItems = await prisma.lineItem.findMany({
+    where: {
+      isReturned: false,
+      transaction: {
+        status: 'COMPLETED',
+        createdAt: { gte: from, lte: to },
+        ...(storeId ? { storeId } : {}),
+      },
+    },
+    select: {
+      itemId: true,
+      quantity: true,
+      soldPrice: true,
+      item: { select: { name: true, category: true, costPrice: true } },
+    },
+  });
+
+  let totalRevenue = 0;
+  let totalCOGS = 0;
+
+  const productMap = new Map<string, { name: string; category: string; revenue: number; cogs: number; unitsSold: number }>();
+
+  for (const li of lineItems) {
+    const qty = Number(li.quantity);
+    const sold = Number(li.soldPrice);
+    const cost = Number(li.item.costPrice);
+    const revenue = sold * qty;
+    const cogs = cost * qty;
+
+    totalRevenue += revenue;
+    totalCOGS += cogs;
+
+    const cur = productMap.get(li.itemId) ?? { name: li.item.name, category: li.item.category, revenue: 0, cogs: 0, unitsSold: 0 };
+    cur.revenue += revenue;
+    cur.cogs += cogs;
+    cur.unitsSold += qty;
+    productMap.set(li.itemId, cur);
+  }
+
+  const grossProfit = totalRevenue - totalCOGS;
+  const grossMarginPct = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
+
+  const byProduct = [...productMap.entries()]
+    .map(([id, d]) => ({
+      id,
+      name: d.name,
+      category: d.category,
+      revenue: Math.round(d.revenue * 100) / 100,
+      cogs: Math.round(d.cogs * 100) / 100,
+      grossProfit: Math.round((d.revenue - d.cogs) * 100) / 100,
+      grossMarginPct: d.revenue > 0 ? ((d.revenue - d.cogs) / d.revenue) * 100 : 0,
+      unitsSold: d.unitsSold,
+    }))
+    .sort((a, b) => b.grossProfit - a.grossProfit)
+    .slice(0, 15);
+
+  return c.json({
+    from: from.toISOString(),
+    to: to.toISOString(),
+    totalRevenue: Math.round(totalRevenue * 100) / 100,
+    totalCOGS: Math.round(totalCOGS * 100) / 100,
+    grossProfit: Math.round(grossProfit * 100) / 100,
+    grossMarginPct: Math.round(grossMarginPct * 100) / 100,
+    byProduct,
+  });
+});
+
 // ─── CSV Export ───────────────────────────────────────────────────────────────
 
 reportsRouter.get('/export/sales', async (c) => {

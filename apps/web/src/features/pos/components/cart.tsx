@@ -56,18 +56,18 @@ export function Cart() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items.length]);
 
-  const openDiscount = (itemId: string, currentPrice: number, currentReason?: string) => {
-    setActiveDiscountId(itemId);
+  const openDiscount = (cartKey: string, currentPrice: number, currentReason?: string) => {
+    setActiveDiscountId(cartKey);
     setDiscountInput(String(currentPrice));
     setDiscountReason(currentReason ?? '');
   };
 
-  const applyDiscount = (itemId: string, originalPrice: number) => {
+  const applyDiscount = (cartKey: string, originalPrice: number) => {
     const val = parseFloat(discountInput);
     if (isNaN(val) || val < 0) return;
     const discountPct = ((originalPrice - val) / originalPrice) * 100;
     const apply = () => {
-      setOverridePrice(itemId, val, discountReason || undefined);
+      setOverridePrice(cartKey, val, discountReason || undefined);
       setActiveDiscountId(null);
     };
     // Require admin PIN for any price override > 0%
@@ -78,8 +78,8 @@ export function Cart() {
     }
   };
 
-  const clearDiscount = (itemId: string) => {
-    setOverridePrice(itemId, undefined);
+  const clearDiscount = (cartKey: string) => {
+    setOverridePrice(cartKey, undefined);
     setActiveDiscountId(null);
   };
 
@@ -128,19 +128,32 @@ export function Cart() {
         <ScrollArea className="flex-1">
           <div className="divide-y">
             {items.map((item) => {
-              const price = item.overridePrice ?? item.nomadBitePrice;
+              const price = item.overridePrice ?? item.sellingPrice;
+              const basePrice = item.sellingPrice;
               const isDiscounted = item.overridePrice !== undefined;
               const discountPct = isDiscounted
-                ? Math.round((1 - item.overridePrice! / item.nomadBitePrice) * 100)
+                ? Math.round((1 - item.overridePrice! / basePrice) * 100)
                 : 0;
-              const isOpen = activeDiscountId === item.id;
+              const isOpen = activeDiscountId === item.cartKey;
 
               return (
-                <div key={item.id}>
+                <div key={item.cartKey}>
                   <div className="px-4 py-3 flex gap-3">
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-semibold truncate leading-tight">{item.name}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{item.unit}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-xs font-semibold truncate leading-tight">{item.name}</p>
+                        {item.selectedTier && (
+                          <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full border"
+                            style={{ borderColor: 'oklch(0.477 0.216 27.3 / 0.3)', color: 'var(--primary)', background: 'oklch(0.477 0.216 27.3 / 0.08)' }}>
+                            {item.selectedTier.name}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {item.selectedTier
+                          ? `${item.selectedTier.name} · ${Number(item.selectedTier.quantityInBase).toLocaleString()} ${item.unit || 'pcs'} each`
+                          : item.unit}
+                      </p>
 
                       <div className="flex items-center gap-1.5 mt-1">
                         <p className="text-xs font-bold" style={{ color: 'var(--primary)' }}>
@@ -159,7 +172,7 @@ export function Cart() {
                         {isDiscounted && (
                           <>
                             <span className="text-[10px] line-through text-muted-foreground">
-                              {Number(item.nomadBitePrice).toLocaleString()}
+                              {Number(basePrice).toLocaleString()}
                             </span>
                             <span className="text-[10px] font-bold px-1 py-0.5 rounded bg-green-500/10 text-green-700">
                               -{discountPct}%
@@ -176,7 +189,7 @@ export function Cart() {
                           onClick={() =>
                             isOpen
                               ? setActiveDiscountId(null)
-                              : openDiscount(item.id, item.overridePrice ?? item.nomadBitePrice, item.discountReason)
+                              : openDiscount(item.cartKey, item.overridePrice ?? item.sellingPrice, item.discountReason)
                           }
                           className={`h-5 w-5 rounded flex items-center justify-center transition-colors ${
                             isDiscounted
@@ -188,7 +201,7 @@ export function Cart() {
                           <Tag className="h-3 w-3" />
                         </button>
                         <button
-                          onClick={() => removeItem(item.id)}
+                          onClick={() => removeItem(item.cartKey)}
                           className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground hover:text-destructive transition-colors"
                         >
                           <X className="h-3 w-3" />
@@ -197,7 +210,7 @@ export function Cart() {
 
                       <div className="flex items-center gap-1">
                         <button
-                          onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                          onClick={() => updateQuantity(item.cartKey, item.quantity - 1)}
                           className="h-6 w-6 rounded border flex items-center justify-center hover:border-primary transition-colors"
                         >
                           <Minus className="h-2.5 w-2.5" />
@@ -207,11 +220,11 @@ export function Cart() {
                           value={item.quantity}
                           onChange={(e) => {
                             const v = parseInt(e.target.value);
-                            if (!isNaN(v)) updateQuantity(item.id, v);
+                            if (!isNaN(v)) updateQuantity(item.cartKey, v);
                           }}
                         />
                         <button
-                          onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                          onClick={() => updateQuantity(item.cartKey, item.quantity + 1)}
                           className="h-6 w-6 rounded border flex items-center justify-center hover:border-primary transition-colors"
                         >
                           <Plus className="h-2.5 w-2.5" />
@@ -234,14 +247,14 @@ export function Cart() {
                         <Input
                           type="number"
                           className="h-7 text-xs"
-                          placeholder={`KES ${item.nomadBitePrice}`}
+                          placeholder={`KES ${basePrice}`}
                           value={discountInput}
                           onChange={(e) => setDiscountInput(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && applyDiscount(item.id, item.nomadBitePrice)}
+                          onKeyDown={(e) => e.key === 'Enter' && applyDiscount(item.cartKey, basePrice)}
                           autoFocus
                         />
                         <button
-                          onClick={() => applyDiscount(item.id, item.nomadBitePrice)}
+                          onClick={() => applyDiscount(item.cartKey, basePrice)}
                           className="shrink-0 h-7 px-2.5 rounded-lg text-xs font-bold"
                           style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
                         >
@@ -256,7 +269,7 @@ export function Cart() {
                       />
                       {isDiscounted && (
                         <button
-                          onClick={() => clearDiscount(item.id)}
+                          onClick={() => clearDiscount(item.cartKey)}
                           className="text-[10px] text-muted-foreground hover:text-destructive underline"
                         >
                           Remove discount

@@ -18,14 +18,17 @@ model Store {
   email        String?
   address      String?
   isActive     Boolean        @default(true)
-  users        User[]
-  items        Item[]
-  shifts       Shift[]
-  transactions Transaction[]
-  vendors      Vendor[]
-  settings     StoreSetting[]
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  users                User[]
+  items                Item[]
+  shifts               Shift[]
+  transactions         Transaction[]
+  vendors              Vendor[]
+  settings             StoreSetting[]
+  stockLocations       StockLocation[]
+  stockTransfers       StockTransfer[]
+  warehouseIntegrations WarehouseIntegration[]
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
 }
 
 // ─── Users & Auth ──────────────────────────────────────────────────────────
@@ -141,11 +144,22 @@ model Item {
   manufacturingDate DateTime?
   expiryDate       DateTime?
 
+  // Supplier info
+  barcode          String?
+  supplierName     String?
+  supplierPhone    String?
+  leadTimeDays     Int?
+  reorderPoint     Decimal?  @db.Decimal(12, 3)
+  reorderQty       Decimal?  @db.Decimal(12, 3)
+
   // Break-bulk hierarchy
   parentItemId     String?
   parentItem       Item?     @relation("ItemHierarchy", fields: [parentItemId], references: [id])
   childItems       Item[]    @relation("ItemHierarchy")
 
+  packagingTiers   PackagingTier[]
+  itemStocks       ItemStock[]
+  stockTransfers   StockTransfer[]
   lineItems        LineItem[]
   adjustments      InventoryAdjustment[]
 
@@ -153,6 +167,84 @@ model Item {
   updatedAt        DateTime  @updatedAt
 
   @@unique([storeId, sku])
+}
+
+model PackagingTier {
+  id                   String   @id @default(cuid())
+  itemId               String
+  item                 Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  name                 String   // "Piece", "Outer", "Carton", "Bale", or custom
+  level                Int      // ordering: 0 = base unit, 1 = outer, 2 = carton, 3 = bale, etc.
+  quantityInBase       Decimal  @db.Decimal(12, 3) // how many base units fit in this tier
+  costPrice            Decimal  @db.Decimal(10, 2) // buying cost per unit of THIS tier
+  sellingPriceOverride Decimal? @db.Decimal(10, 2) // optional override (bulk / carton price)
+  barcode              String?  // tier-specific barcode for scanning
+  isBaseUnit           Boolean  @default(false)    // the tier sold individually at POS
+  stockTransfers       StockTransfer[]
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@unique([itemId, name])
+  @@unique([itemId, level])
+}
+
+// ─── Multi-Location Stock ─────────────────────────────────────────────────────
+
+enum LocationType {
+  WAREHOUSE
+  SHELF
+  DISPLAY
+  TRANSIT
+  OTHER
+}
+
+model StockLocation {
+  id            String         @id @default(cuid())
+  storeId       String
+  store         Store          @relation(fields: [storeId], references: [id])
+  name          String
+  type          LocationType   @default(WAREHOUSE)
+  description   String?
+  isActive      Boolean        @default(true)
+  itemStocks    ItemStock[]
+  transfersFrom StockTransfer[] @relation("TransferFrom")
+  transfersTo   StockTransfer[] @relation("TransferTo")
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@unique([storeId, name])
+}
+
+model ItemStock {
+  id         String        @id @default(cuid())
+  itemId     String
+  item       Item          @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  locationId String
+  location   StockLocation @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  quantity   Decimal       @default(0) @db.Decimal(12, 3)
+  updatedAt  DateTime      @updatedAt
+
+  @@unique([itemId, locationId])
+}
+
+model StockTransfer {
+  id              String         @id @default(cuid())
+  storeId         String
+  store           Store          @relation(fields: [storeId], references: [id])
+  itemId          String
+  item            Item           @relation(fields: [itemId], references: [id])
+  fromLocationId  String?
+  fromLocation    StockLocation? @relation("TransferFrom", fields: [fromLocationId], references: [id])
+  toLocationId    String?
+  toLocation      StockLocation? @relation("TransferTo", fields: [toLocationId], references: [id])
+  quantityBase    Decimal        @db.Decimal(12, 3)
+  packagingTierId String?
+  packagingTier   PackagingTier? @relation(fields: [packagingTierId], references: [id])
+  quantityInTier  Decimal?       @db.Decimal(12, 3)
+  reason          String?
+  notes           String?
+  performedById   String?
+  createdAt       DateTime       @default(now())
 }
 
 // ─── Transactions ────────────────────────────────────────────────────────────
@@ -306,4 +398,58 @@ enum VendorPaymentMethod {
   CASH
   MPESA
   BANK_TRANSFER
+}
+
+// ─── Warehouse Integration Plugin ─────────────────────────────────────────────
+
+enum IntegrationType {
+  CSV
+  WEBHOOK
+  REST_API
+  ODOO
+  QUICKBOOKS
+  SAGE
+}
+
+enum SyncDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum SyncStatus {
+  SUCCESS
+  PARTIAL
+  FAILED
+}
+
+model WarehouseIntegration {
+  id            String               @id @default(cuid())
+  storeId       String
+  store         Store                @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  name          String
+  type          IntegrationType
+  syncDirection SyncDirection        @default(INBOUND)
+  credentials   Json                 @default("{}")
+  fieldMappings Json                 @default("[]")
+  webhookSecret String?              @unique
+  isActive      Boolean              @default(false)
+  lastSyncAt    DateTime?
+  syncLogs      IntegrationSyncLog[]
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  @@unique([storeId, name])
+}
+
+model IntegrationSyncLog {
+  id             String               @id @default(cuid())
+  integrationId  String
+  integration    WarehouseIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  status         SyncStatus
+  rowsProcessed  Int                  @default(0)
+  rowsSucceeded  Int                  @default(0)
+  rowsFailed     Int                  @default(0)
+  errorMessage   String?
+  details        Json?
+  createdAt      DateTime             @default(now())
 }

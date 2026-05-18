@@ -14,6 +14,8 @@ import { storesRouter } from './routes/stores';
 import { superadminRouter } from './routes/superadmin';
 import { mpesaRouter } from './routes/mpesa';
 import { imageSyncRouter } from './routes/image-sync';
+import { locationsRouter } from './routes/locations';
+import { integrationsRouter } from './routes/integrations';
 
 const app = new Hono();
 
@@ -43,6 +45,8 @@ app.route('/api/stores', storesRouter);
 app.route('/api/superadmin', superadminRouter);
 app.route('/api/mpesa', mpesaRouter);
 app.route('/api/image-sync', imageSyncRouter);
+app.route('/api/locations', locationsRouter);
+app.route('/api/integrations', integrationsRouter);
 
 app.get('/api/health', (c) => c.json({ status: 'ok', db: 'postgres', port: 3001 }));
 

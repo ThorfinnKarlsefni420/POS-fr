@@ -145,21 +145,43 @@ export const api = {
     update: (id: string, data: Partial<ApiItem>) =>
       req<ApiItem>(`/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id: string) => req<{ ok: boolean }>(`/products/${id}`, { method: 'DELETE' }),
+    vatPending: () => req<VatPendingItem[]>('/products/vat-pending'),
+    confirmVatClass: (id: string, vatClassId: string, vatOverrideReason: string) =>
+      req<ApiItem>(`/products/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ vatClassId, vatOverrideReason, needsVatConfirmation: false }),
+      }),
     import: (products: ApiItem[], replace: boolean) =>
       req<{ succeeded: number; failed: number }>('/products/import', {
         method: 'POST',
         body: JSON.stringify({ products, replace }),
       }),
-    adjustStock: (id: string, delta: number, reasonCode = 'RESTOCK', note?: string) =>
+    adjustStock: (id: string, delta: number, reasonCode = 'RESTOCK', note?: string, tierId?: string) =>
       req<ApiItem>(`/products/${id}/adjust`, {
         method: 'POST',
-        body: JSON.stringify({ delta, reasonCode, note }),
+        body: JSON.stringify({ delta, reasonCode, note, tierId }),
       }),
     bulkImage: (ids: string[], imageUrl: string) =>
       req<{ updated: number }>('/products/bulk-image', {
         method: 'POST',
         body: JSON.stringify({ ids, imageUrl }),
       }),
+    listTiers: (itemId: string) =>
+      req<ApiPackagingTier[]>(`/products/${itemId}/packaging`),
+    createTier: (itemId: string, data: Partial<ApiPackagingTier>) =>
+      req<ApiPackagingTier>(`/products/${itemId}/packaging`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    updateTier: (itemId: string, tierId: string, data: Partial<ApiPackagingTier>) =>
+      req<ApiPackagingTier>(`/products/${itemId}/packaging/${tierId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    deleteTier: (itemId: string, tierId: string) =>
+      req<{ ok: boolean }>(`/products/${itemId}/packaging/${tierId}`, { method: 'DELETE' }),
+    history: (itemId: string) =>
+      req<ItemHistory>(`/products/${itemId}/history`),
   },
   settings: {
     get: () => req<ApiSettings>('/settings'),
@@ -171,6 +193,7 @@ export const api = {
     shifts: (from: string, to: string) => req<ShiftsReport>(`/reports/shifts?from=${from}&to=${to}`),
     inventory: () => req<InventoryReport>('/reports/inventory'),
     vat: (from: string, to: string) => req<VatReport>(`/reports/vat?from=${from}&to=${to}`),
+    profit: (from: string, to: string) => req<ProfitReport>(`/reports/profit?from=${from}&to=${to}`),
     exportCsv: async (endpoint: string, filename: string) => {
       const user = useAuthStore.getState().user;
       const headers: Record<string, string> = {};
@@ -204,6 +227,45 @@ export const api = {
       req<ApiStore>(`/stores/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     stats: (id: string) => req<StoreStats>(`/stores/${id}/stats`),
   },
+  locations: {
+    list: () => req<StockLocation[]>('/locations'),
+    create: (data: { name: string; type?: LocationType; description?: string }) =>
+      req<StockLocation>('/locations', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Partial<Pick<StockLocation, 'name' | 'type' | 'description' | 'isActive'>>) =>
+      req<StockLocation>(`/locations/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    deactivate: (id: string) =>
+      req<{ ok: boolean }>(`/locations/${id}`, { method: 'DELETE' }),
+    getItemStock: (itemId: string) =>
+      req<ItemStockBreakdown>(`/locations/item/${itemId}`),
+    transfer: (itemId: string, payload: TransferPayload) =>
+      req<{ ok: boolean; totalStock: number; locations: ItemLocationStock[] }>(
+        `/locations/item/${itemId}/transfer`,
+        { method: 'POST', body: JSON.stringify(payload) }
+      ),
+    transfers: (params?: { itemId?: string; limit?: number }) => {
+      const qs = new URLSearchParams();
+      if (params?.itemId) qs.set('itemId', params.itemId);
+      if (params?.limit) qs.set('limit', String(params.limit));
+      const q = qs.toString();
+      return req<StockTransferRecord[]>(`/locations/transfers${q ? `?${q}` : ''}`);
+    },
+    replenishment: () => req<ReplenishmentAlert[]>('/locations/replenishment'),
+  },
+  integrations: {
+    list: () => req<Integration[]>('/integrations'),
+    create: (data: Partial<Integration> & { name: string; type: IntegrationType }) =>
+      req<Integration>('/integrations', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Partial<Integration>) =>
+      req<Integration>(`/integrations/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    remove: (id: string) =>
+      req<{ ok: boolean }>(`/integrations/${id}`, { method: 'DELETE' }),
+    logs: (id: string) => req<SyncLog[]>(`/integrations/${id}/logs`),
+    sync: (id: string, payload: { rows?: Record<string, unknown>[]; csvText?: string }) =>
+      req<{ ok: boolean; result: { rowsProcessed: number; rowsSucceeded: number; rowsFailed: number; errors: string[] }; log: SyncLog }>(
+        `/integrations/${id}/sync`,
+        { method: 'POST', body: JSON.stringify(payload) }
+      ),
+  },
   superadmin: {
     dashboard: () => req<SuperAdminDashboard>('/superadmin/dashboard'),
     inventory: (params?: { storeId?: string; search?: string }) => {
@@ -236,6 +298,37 @@ export const api = {
   },
 };
 
+export interface ItemHistory {
+  adjustments: {
+    id: string;
+    quantity: number;
+    reasonCode: string;
+    note: string | null;
+    createdAt: string;
+  }[];
+  transfers: {
+    id: string;
+    from: string;
+    to: string;
+    quantityBase: number;
+    tierName: string | null;
+    quantityInTier: number | null;
+    reason: string | null;
+    createdAt: string;
+  }[];
+}
+
+export interface ApiPackagingTier {
+  id: string;
+  name: string;
+  level: number;
+  quantityInBase: string | number;
+  costPrice: string | number;
+  sellingPriceOverride?: string | number | null;
+  barcode?: string | null;
+  isBaseUnit: boolean;
+}
+
 export interface ApiItem {
   id: string;
   name: string;
@@ -248,7 +341,9 @@ export interface ApiItem {
   sellingPrice: string | number;
   nomadBitePrice: string | number;
   taxRate: string | number;
-  etimsCode?: string;  // 'VAT' | 'ZERO' | 'NONTAXABLE' — resolved server-side from VatClass
+  etimsCode?: string;           // 'VAT' | 'ZERO' | 'NONTAXABLE' — resolved server-side from VatClass
+  vatClassId?: string | null;
+  needsVatConfirmation?: boolean;
   isFractional: boolean;
   currentStock: string | number;
   description?: string;
@@ -256,6 +351,111 @@ export interface ApiItem {
   imageUrl?: string;
   manufacturingDate?: string;
   expiryDate?: string;
+  packagingTiers?: ApiPackagingTier[];
+}
+
+// ── Multi-Location Stock Types ────────────────────────────────────────────────
+
+export type LocationType = 'WAREHOUSE' | 'SHELF' | 'DISPLAY' | 'TRANSIT' | 'OTHER';
+
+export interface StockLocation {
+  id: string;
+  name: string;
+  type: LocationType;
+  description?: string | null;
+  isActive: boolean;
+  itemCount: number;
+  totalUnits: number;
+  createdAt: string;
+}
+
+export interface ItemLocationStock {
+  id: string;
+  locationId: string;
+  locationName: string;
+  locationType: LocationType;
+  locationActive: boolean;
+  quantity: number;
+}
+
+export interface ItemStockBreakdown {
+  itemId: string;
+  totalStock: number;
+  unallocated: number;
+  locations: ItemLocationStock[];
+}
+
+export interface StockTransferRecord {
+  id: string;
+  itemId: string;
+  itemName: string;
+  itemSku: string;
+  from: string;
+  to: string;
+  quantityBase: number;
+  tierName: string | null;
+  quantityInTier: number | null;
+  reason: string | null;
+  notes: string | null;
+  createdAt: string;
+}
+
+export interface TransferPayload {
+  fromLocationId?: string | null;
+  toLocationId?: string | null;
+  quantity: number;
+  tierId?: string;
+  reason?: string;
+  notes?: string;
+}
+
+export interface ReplenishmentAlert {
+  itemId: string;
+  itemName: string;
+  itemSku: string;
+  packagingTiers: { id: string; name: string; quantityInBase: number }[];
+  warehouseQty: number;
+  warehouseLocations: { id: string; name: string; qty: number }[];
+  shelfQty: number;
+  shelfLocations: { id: string; name: string; type: string; qty: number }[];
+}
+
+// ─── Warehouse Integration types ──────────────────────────────────────────────
+
+export type IntegrationType = 'CSV' | 'WEBHOOK' | 'REST_API' | 'ODOO' | 'QUICKBOOKS' | 'SAGE';
+export type SyncDirection = 'INBOUND' | 'OUTBOUND';
+export type SyncStatus = 'SUCCESS' | 'PARTIAL' | 'FAILED';
+
+export interface FieldMapping {
+  externalField: string;
+  internalField: 'sku' | 'name' | 'currentStock' | 'costPrice' | 'sellingPrice' | 'category' | 'unit';
+  stockMode?: 'SET' | 'ADD';
+}
+
+export interface Integration {
+  id: string;
+  name: string;
+  type: IntegrationType;
+  syncDirection: SyncDirection;
+  isActive: boolean;
+  lastSyncAt: string | null;
+  webhookSecret: string | null;
+  credentials: Record<string, string>;
+  fieldMappings: FieldMapping[];
+  syncCount: number;
+  createdAt: string;
+}
+
+export interface SyncLog {
+  id: string;
+  integrationId: string;
+  status: SyncStatus;
+  rowsProcessed: number;
+  rowsSucceeded: number;
+  rowsFailed: number;
+  errorMessage: string | null;
+  details: { errors: string[] } | null;
+  createdAt: string;
 }
 
 export interface SuperAdminInventoryItem {
@@ -376,6 +576,38 @@ export interface InventoryReport {
   recentAdjustments: Array<{ itemName: string; quantity: number; reasonCode: string; note: string; createdAt: string }>;
 }
 
+export interface VatPendingItem {
+  id: string;
+  name: string;
+  category: string;
+  unit: string;
+  currentEtimsCode: string;
+  currentVatLabel: string;
+  flagReason: string;
+  suggestedVatClassId: string;
+  suggestedEtimsCode: string;
+  suggestedLabel: string;
+}
+
+export interface ProfitReport {
+  from: string;
+  to: string;
+  totalRevenue: number;
+  totalCOGS: number;
+  grossProfit: number;
+  grossMarginPct: number;
+  byProduct: Array<{
+    id: string;
+    name: string;
+    category: string;
+    revenue: number;
+    cogs: number;
+    grossProfit: number;
+    grossMarginPct: number;
+    unitsSold: number;
+  }>;
+}
+
 export interface VatReport {
   from: string;
   to: string;
@@ -404,6 +636,7 @@ export function apiItemToProduct(item: ApiItem) {
     nomadBitePrice: Number(item.nomadBitePrice),
     taxRate: Number(item.taxRate),
     etimsCode: item.etimsCode ?? 'VAT',
+    needsVatConfirmation: item.needsVatConfirmation ?? false,
     isFractional: item.isFractional,
     currentStock: Number(item.currentStock),
     description: item.description,
@@ -411,5 +644,16 @@ export function apiItemToProduct(item: ApiItem) {
     imageUrl: item.imageUrl,
     manufacturingDate: item.manufacturingDate?.split('T')[0],
     expiryDate: item.expiryDate?.split('T')[0],
+    packagingTiers: (item.packagingTiers ?? []).map((t) => ({
+      id: t.id,
+      itemId: item.id,
+      name: t.name,
+      level: Number(t.level),
+      quantityInBase: Number(t.quantityInBase),
+      costPrice: Number(t.costPrice),
+      sellingPriceOverride: t.sellingPriceOverride != null ? Number(t.sellingPriceOverride) : null,
+      barcode: t.barcode ?? null,
+      isBaseUnit: t.isBaseUnit,
+    })),
   };
 }

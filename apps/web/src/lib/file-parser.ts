@@ -81,7 +81,42 @@ function detectColumns(headers: string[]) {
 
   const stockCol = find('itemsbalance', 'items balance', 'balance', 'stock', 'qty', 'quantity', 'current stock');
 
-  return { nameCol, categoryCol, subCategoryCol, priceCol, sellingPriceCol, skuCol, unitCol, imageCol, vatCol, stockCol };
+  // Packaging tiers
+  const l1Name = find('l1 pack name', 'l1 name', 'l1packname');
+  const l1Qty = find('l1 qty in base', 'l1 quantity', 'l1qty');
+  const l1Cost = find('l1 cost', 'l1 buying');
+  const l1Sell = find('l1 sell', 'l1 price');
+  const l1Barcode = find('l1 barcode', 'l1 bar code');
+
+  const l2Name = find('l2 pack name', 'l2 name', 'l2packname');
+  const l2QtyInL1 = find('l2 qty in l1', 'l2 quantity in l1', 'l2qtyl1');
+  const l2Cost = find('l2 cost', 'l2 buying');
+  const l2Sell = find('l2 sell', 'l2 price');
+  const l2Barcode = find('l2 barcode', 'l2 bar code');
+
+  return {
+    nameCol, categoryCol, subCategoryCol, priceCol, sellingPriceCol,
+    skuCol, unitCol, imageCol, vatCol, stockCol,
+    l1Name, l1Qty, l1Cost, l1Sell, l1Barcode,
+    l2Name, l2QtyInL1, l2Cost, l2Sell, l2Barcode,
+  };
+}
+
+function extractMultiplier(name: string): number | undefined {
+  // Matches "8*30g", "6 x 500ml", "12 * 1L", "24/case", "Pack of 6"
+  const patterns = [
+    /(\d+)\s*[*xX]\s*\d+/,  // 8*30g
+    /(\d+)\s*pcs/i,          // 50 pcs
+    /pack\s*of\s*(\d+)/i,    // Pack of 6
+    /case\s*of\s*(\d+)/i,    // Case of 12
+    /(\d+)\s*units/i,        // 24 units
+  ];
+
+  for (const p of patterns) {
+    const match = name.match(p);
+    if (match) return parseInt(match[1], 10);
+  }
+  return undefined;
 }
 
 function rowsToProducts(rows: Row[], serviceFeePercent: number): ParseResult {
@@ -128,6 +163,64 @@ function rowsToProducts(rows: Row[], serviceFeePercent: number): ParseResult {
     seenSkus.set(baseSku, skuCount + 1);
     const sku = skuCount === 0 ? baseSku : `${baseSku}-${skuCount + 1}`;
 
+    // Parse packaging tiers
+    const packagingTiers: any[] = [];
+    let l1NameVal = cols.l1Name ? row[cols.l1Name]?.toString().trim() : undefined;
+    let l1QtyVal = parsePrice(cols.l1Qty ? row[cols.l1Qty] : undefined);
+
+    // Heuristic: If L1 qty is missing, try to extract from name
+    if (!l1QtyVal) {
+      const guessed = extractMultiplier(name);
+      if (guessed && guessed > 1) {
+        l1QtyVal = guessed;
+        if (!l1NameVal) l1NameVal = 'Outer';
+      }
+    }
+
+    if (l1NameVal && l1QtyVal > 0) {
+      // If we have tiers, ensure we also have the base unit (level 0)
+      const unit = cols.unitCol ? row[cols.unitCol]?.toString().trim() ?? 'Piece' : 'Piece';
+      packagingTiers.push({
+        id: `import-tier-l0-${sku}-${i}`,
+        name: unit,
+        level: 0,
+        quantityInBase: 1,
+        costPrice: costPrice,
+        sellingPriceOverride: sellingPrice,
+        barcode: rawSku || null,
+        isBaseUnit: true,
+      });
+
+      packagingTiers.push({
+        id: `import-tier-l1-${sku}-${i}`,
+        name: l1NameVal,
+        level: 1,
+        quantityInBase: l1QtyVal,
+        costPrice: parsePrice(cols.l1Cost ? row[cols.l1Cost] : undefined) || (costPrice * l1QtyVal),
+        sellingPriceOverride: parsePrice(cols.l1Sell ? row[cols.l1Sell] : undefined) || null,
+        barcode: cols.l1Barcode ? row[cols.l1Barcode]?.toString().trim() : null,
+        isBaseUnit: false,
+      });
+    }
+
+    const l2NameVal = cols.l2Name ? row[cols.l2Name]?.toString().trim() : undefined;
+    const l2QtyInL1Val = parsePrice(cols.l2QtyInL1 ? row[cols.l2QtyInL1] : undefined);
+
+    if (l2NameVal && l2QtyInL1Val > 0) {
+      const l1Qty = packagingTiers.find(t => t.level === 1)?.quantityInBase || 1;
+      const qtyInBase = l2QtyInL1Val * l1Qty;
+      packagingTiers.push({
+        id: `import-tier-l2-${sku}-${i}`,
+        name: l2NameVal,
+        level: 2,
+        quantityInBase: qtyInBase,
+        costPrice: parsePrice(cols.l2Cost ? row[cols.l2Cost] : undefined) || (costPrice * qtyInBase),
+        sellingPriceOverride: parsePrice(cols.l2Sell ? row[cols.l2Sell] : undefined) || null,
+        barcode: cols.l2Barcode ? row[cols.l2Barcode]?.toString().trim() : null,
+        isBaseUnit: false,
+      });
+    }
+
     products.push({
       id: `import-${Date.now()}-${i}`,
       name,
@@ -143,6 +236,7 @@ function rowsToProducts(rows: Row[], serviceFeePercent: number): ParseResult {
       isFractional: false,
       currentStock,
       imageUrl: fileImage || DEFAULT_PRODUCT_IMAGE,
+      packagingTiers: packagingTiers.length > 0 ? packagingTiers : undefined,
     });
   });
 

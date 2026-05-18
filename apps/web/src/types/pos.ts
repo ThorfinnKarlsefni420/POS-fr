@@ -1,3 +1,15 @@
+export interface PackagingTier {
+  id: string;
+  itemId: string;
+  name: string;               // "Piece", "Outer", "Carton", "Bale", or custom
+  level: number;              // 0 = base, 1 = outer, 2 = carton, 3 = bale
+  quantityInBase: number;     // how many base units fit in this tier
+  costPrice: number;          // buying cost per unit of this tier
+  sellingPriceOverride?: number | null; // optional bulk selling price override
+  barcode?: string | null;
+  isBaseUnit: boolean;        // true = the tier sold individually at POS
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -11,18 +23,29 @@ export interface Product {
   nomadBitePrice: number;
   taxRate: number;
   etimsCode: string;  // 'VAT' | 'ZERO' | 'NONTAXABLE' — resolved from VatClass
+  needsVatConfirmation?: boolean;
   isFractional: boolean;
   currentStock: number;
   description?: string;
   notes?: string;
   imageUrl?: string;
+  barcode?: string | null;
   manufacturingDate?: string;
   expiryDate?: string;
+  // Supplier info
+  supplierName?: string | null;
+  supplierPhone?: string | null;
+  leadTimeDays?: number | null;
+  reorderPoint?: number | null;
+  reorderQty?: number | null;
+  packagingTiers?: PackagingTier[];
 }
 
 export interface CartItem extends Product {
-  quantity: number;
-  overridePrice?: number;
+  cartKey: string;            // unique cart identity: `${id}:${selectedTier?.id ?? 'base'}`
+  quantity: number;           // number of selectedTier units (or base units if no tier)
+  selectedTier?: PackagingTier; // the packaging tier chosen at add-to-cart time
+  overridePrice?: number;     // manual price override (per selected tier unit)
   discountReason?: string;
 }
 

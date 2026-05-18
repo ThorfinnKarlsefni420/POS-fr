@@ -4,8 +4,9 @@ import { useCartStore } from '../store/use-cart-store';
 import { useProducts } from '@/hooks/use-products';
 import { useBarcodeScanner } from '@/hooks/use-barcode-scanner';
 import { Input } from '@/components/ui/input';
-import { Search, Plus, Package, Loader2, Eye, EyeOff } from 'lucide-react';
-import type { Product } from '@/types/pos';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Search, Plus, Package, Loader2, Eye, EyeOff, Layers } from 'lucide-react';
+import type { PackagingTier, Product } from '@/types/pos';
 
 // Card height (px) + row gap (px)
 const CARD_H = 72;
@@ -35,8 +36,9 @@ function useCols(): number {
 
 function ProductCard({ product, onAdd }: { product: Product; onAdd: (p: Product) => void }) {
   const outOfStock = product.currentStock <= 0;
-  const noPrice = product.sellingPrice <= 0;
+  const noPrice = product.sellingPrice <= 0 && product.nomadBitePrice <= 0;
   const disabled = outOfStock || noPrice;
+  const tierCount = product.packagingTiers?.length ?? 0;
 
   const hue = product.name.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
   const bg = `hsla(${hue}, 60%, 50%, 0.12)`;
@@ -85,11 +87,19 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: (p: Product)
         <div className="text-sm font-bold leading-tight truncate text-foreground group-hover:text-primary transition-colors">
           {product.name}
         </div>
-        <div
-          className="text-xs font-black mt-1"
-          style={{ color: noPrice ? 'var(--muted-foreground)' : 'var(--primary)' }}
-        >
-          {noPrice ? 'NO PRICE' : `KES ${Number(product.sellingPrice).toLocaleString()}`}
+        <div className="flex items-center gap-1.5 mt-1">
+          <div
+            className="text-xs font-black"
+            style={{ color: noPrice ? 'var(--muted-foreground)' : 'var(--primary)' }}
+          >
+            {noPrice ? 'NO PRICE' : `KES ${Number(product.nomadBitePrice || product.sellingPrice).toLocaleString()}`}
+          </div>
+          {tierCount > 1 && (
+            <span className="flex items-center gap-0.5 text-[9px] font-bold text-muted-foreground">
+              <Layers className="h-2.5 w-2.5" />
+              {tierCount}
+            </span>
+          )}
         </div>
       </div>
 
@@ -103,27 +113,128 @@ function ProductCard({ product, onAdd }: { product: Product; onAdd: (p: Product)
   );
 }
 
+function TierPickerDialog({
+  product,
+  onSelect,
+  onClose,
+}: {
+  product: Product;
+  onSelect: (tier?: PackagingTier) => void;
+  onClose: () => void;
+}) {
+  const dbTiers = (product.packagingTiers ?? []).filter((t) => !t.isBaseUnit && t.level > 0);
+
+  // Always include the base unit (individual piece) as the first option
+  const baseUnitName = product.unit || 'Piece';
+  const basePrice = product.nomadBitePrice || product.sellingPrice;
+
+  function tierPrice(tier: PackagingTier): number {
+    if (tier.sellingPriceOverride != null) return tier.sellingPriceOverride;
+    return basePrice * tier.quantityInBase;
+  }
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-xs">
+        <DialogHeader>
+          <DialogTitle className="font-black text-base">{product.name}</DialogTitle>
+          <p className="text-xs text-muted-foreground mt-0.5">Select packaging size</p>
+        </DialogHeader>
+        <div className="space-y-2 pt-1">
+          {/* Base unit — always first */}
+          <button
+            onClick={() => onSelect(undefined)}
+            className="w-full flex items-center justify-between px-4 py-3 rounded-xl border hover:border-primary hover:bg-primary/5 transition-all text-left group"
+          >
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold group-hover:text-primary transition-colors">{baseUnitName}</span>
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                  style={{ background: 'oklch(0.477 0.216 27.3 / 0.12)', color: 'var(--primary)' }}>
+                  BASE
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">1 {baseUnitName}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-sm font-black" style={{ color: 'var(--primary)' }}>
+                KES {basePrice.toLocaleString()}
+              </p>
+            </div>
+          </button>
+
+          {/* Higher tiers (Outer, Carton, Bale…) */}
+          {dbTiers.map((tier) => (
+            <button
+              key={tier.id}
+              onClick={() => onSelect(tier)}
+              className="w-full flex items-center justify-between px-4 py-3 rounded-xl border hover:border-primary hover:bg-primary/5 transition-all text-left group"
+            >
+              <div>
+                <span className="text-sm font-bold group-hover:text-primary transition-colors">{tier.name}</span>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {Number(tier.quantityInBase).toLocaleString()} {baseUnitName}s each
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm font-black" style={{ color: 'var(--primary)' }}>
+                  KES {tierPrice(tier).toLocaleString()}
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  KES {basePrice.toLocaleString()} / {baseUnitName}
+                </p>
+              </div>
+            </button>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function Catalog() {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const [showOutOfStock, setShowOutOfStock] = useState(false);
+  const [tierPickProduct, setTierPickProduct] = useState<Product | null>(null);
   const addItem = useCartStore((s) => s.addItem);
   const { data: products = [], isLoading, isError } = useProducts();
   const scrollRef = useRef<HTMLDivElement>(null);
   const cols = useCols();
 
-  // Barcode scanner: match scanned SKU directly to a product and add to cart
+  const handleAddProduct = useCallback((product: Product) => {
+    const tiers = (product.packagingTiers ?? []).filter((t) => !t.isBaseUnit && t.level > 0);
+    if (tiers.length >= 1) {
+      // Has packaging tiers — show picker so cashier can choose Piece, Outer, Carton, etc.
+      setTierPickProduct(product);
+    } else {
+      // No tiers — add as base unit directly
+      addItem(product);
+    }
+  }, [addItem]);
+
+  // Barcode scanner: match scanned SKU or tier barcode directly to a product and add to cart
   const handleScan = useCallback((barcode: string) => {
+    // First check tier barcodes across all products
+    for (const p of products) {
+      const matchTier = (p.packagingTiers ?? []).find(
+        (t) => t.barcode && t.barcode.toLowerCase() === barcode.toLowerCase()
+      );
+      if (matchTier && p.sellingPrice > 0) {
+        addItem(p, matchTier);
+        return;
+      }
+    }
+    // Fall back to SKU match
     const match = products.find(
       (p) => p.sku.toLowerCase() === barcode.toLowerCase()
     );
     if (match && match.sellingPrice > 0) {
-      addItem(match);
+      handleAddProduct(match);
     } else {
-      // Fall back to showing the barcode in the search box so the cashier can see it
       setSearch(barcode);
     }
-  }, [products, addItem]);
+  }, [products, addItem, handleAddProduct]);
 
   useBarcodeScanner(handleScan);
 
@@ -252,13 +363,24 @@ export function Catalog() {
                   }}
                 >
                   {rows[vRow.index].map((product) => (
-                    <ProductCard key={product.id} product={product} onAdd={addItem} />
+                    <ProductCard key={product.id} product={product} onAdd={handleAddProduct} />
                   ))}
                 </div>
               ))}
             </div>
           )}
         </div>
+      )}
+
+      {tierPickProduct && (
+        <TierPickerDialog
+          product={tierPickProduct}
+          onSelect={(tier) => {
+            addItem(tierPickProduct, tier);
+            setTierPickProduct(null);
+          }}
+          onClose={() => setTierPickProduct(null)}
+        />
       )}
     </div>
   );

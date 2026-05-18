@@ -41,7 +41,7 @@ if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 
 export async function warmUpDb(): Promise<void> {
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    await (prisma as any).$queryRawUnsafe('SELECT 1');
     console.log('  ✓ DB connection ready');
   } catch (err) {
     console.warn('  ⚠ DB warmup failed — first request may be slow:', (err as Error).message);

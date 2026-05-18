@@ -27,13 +27,22 @@ export function CheckoutModal({ open, onClose, total }: Props) {
   const zeroStockItems = items.filter((i) => i.currentStock <= 0);
 
   const buildPayload = () => ({
-    items: items.map((item) => ({
-      id: item.id,
-      quantity: item.quantity,
-      originalPrice: item.sellingPrice,
-      soldPrice: item.overridePrice ?? item.sellingPrice,
-      discountReason: item.discountReason,
-    })),
+    items: items.map((item) => {
+      // If a tier was selected, convert quantity to base units for stock deduction
+      const baseQty = item.selectedTier
+        ? item.quantity * Number(item.selectedTier.quantityInBase)
+        : item.quantity;
+      const tierPrice = item.selectedTier
+        ? (item.selectedTier.sellingPriceOverride ?? item.nomadBitePrice * Number(item.selectedTier.quantityInBase))
+        : item.sellingPrice;
+      return {
+        id: item.id,
+        quantity: baseQty,
+        originalPrice: tierPrice,
+        soldPrice: item.overridePrice ?? tierPrice,
+        discountReason: item.discountReason,
+      };
+    }),
     totalAmount: total,
     taxAmount,
     paymentType: 'CASH' as const,
@@ -97,14 +106,22 @@ export function CheckoutModal({ open, onClose, total }: Props) {
               </div>
 
               <div className="border-t border-dashed pt-3 space-y-1.5">
-                {(result.lineItems ?? items.map((i) => ({
-                  itemId: i.id,
-                  item: { name: i.name, etimsCode: i.etimsCode } as never,
-                  quantity: i.quantity,
-                  soldPrice: i.overridePrice ?? i.nomadBitePrice,
-                  discountReason: i.discountReason,
-                  etimsCode: i.etimsCode,
-                }))).map((li, idx) => {
+                {(result.lineItems ?? items.map((i) => {
+                  const tierPrice = i.selectedTier
+                    ? (i.selectedTier.sellingPriceOverride ?? i.nomadBitePrice * Number(i.selectedTier.quantityInBase))
+                    : i.nomadBitePrice;
+                  return {
+                    itemId: i.id,
+                    item: {
+                      name: i.selectedTier ? `${i.name} (${i.selectedTier.name})` : i.name,
+                      etimsCode: i.etimsCode,
+                    } as never,
+                    quantity: i.quantity,
+                    soldPrice: i.overridePrice ?? tierPrice,
+                    discountReason: i.discountReason,
+                    etimsCode: i.etimsCode,
+                  };
+                })).map((li, idx) => {
                   const code = (li as { etimsCode?: string }).etimsCode ?? li.item?.etimsCode ?? 'VAT';
                   const tag = code === 'VAT' ? '[V]' : code === 'ZERO' ? '[Z]' : '[E]';
                   return (

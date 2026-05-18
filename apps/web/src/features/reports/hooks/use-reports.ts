@@ -28,3 +28,10 @@ export function useVatReport(from: string, to: string) {
     queryFn: () => api.reports.vat(from, to),
   });
 }
+
+export function useProfitReport(from: string, to: string) {
+  return useQuery({
+    queryKey: ['reports', 'profit', from, to],
+    queryFn: () => api.reports.profit(from, to),
+  });
+}

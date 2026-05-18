@@ -1,14 +1,23 @@
 import { create } from 'zustand';
-import { CartItem, CartTotals, Product } from '@/types/pos';
+import { CartItem, CartTotals, PackagingTier, Product } from '@/types/pos';
 
 interface CartState {
   items: CartItem[];
-  addItem: (product: Product) => void;
-  removeItem: (productId: string) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
-  setOverridePrice: (productId: string, price: number | undefined, reason?: string) => void;
+  addItem: (product: Product, tier?: PackagingTier) => void;
+  removeItem: (cartKey: string) => void;
+  updateQuantity: (cartKey: string, quantity: number) => void;
+  setOverridePrice: (cartKey: string, price: number | undefined, reason?: string) => void;
   clearCart: () => void;
   totals: () => CartTotals;
+}
+
+function makeCartKey(productId: string, tierId?: string) {
+  return `${productId}:${tierId ?? 'base'}`;
+}
+
+function tierSellingPrice(product: Product, tier: PackagingTier): number {
+  if (tier.sellingPriceOverride != null) return tier.sellingPriceOverride;
+  return product.nomadBitePrice * tier.quantityInBase;
 }
 
 const getEffectivePrice = (item: CartItem) =>
@@ -17,36 +26,46 @@ const getEffectivePrice = (item: CartItem) =>
 export const useCartStore = create<CartState>((set, get) => ({
   items: [],
 
-  addItem: (product) => {
+  addItem: (product, tier) => {
+    const cartKey = makeCartKey(product.id, tier?.id);
+    const sellingPrice = tier ? tierSellingPrice(product, tier) : product.nomadBitePrice;
+
     set((state) => {
-      const existing = state.items.find((i) => i.id === product.id);
+      const existing = state.items.find((i) => i.cartKey === cartKey);
       if (existing) {
         return {
           items: state.items.map((i) =>
-            i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i
+            i.cartKey === cartKey ? { ...i, quantity: i.quantity + 1 } : i
           ),
         };
       }
-      return { items: [...state.items, { ...product, quantity: 1 }] };
+      const newItem: CartItem = {
+        ...product,
+        cartKey,
+        quantity: 1,
+        selectedTier: tier,
+        sellingPrice,
+      };
+      return { items: [...state.items, newItem] };
     });
   },
 
-  removeItem: (productId) =>
+  removeItem: (cartKey) =>
     set((state) => ({
-      items: state.items.filter((i) => i.id !== productId),
+      items: state.items.filter((i) => i.cartKey !== cartKey),
     })),
 
-  updateQuantity: (productId, quantity) =>
+  updateQuantity: (cartKey, quantity) =>
     set((state) => ({
       items: state.items
-        .map((i) => (i.id === productId ? { ...i, quantity: Math.max(0, quantity) } : i))
+        .map((i) => (i.cartKey === cartKey ? { ...i, quantity: Math.max(0, quantity) } : i))
         .filter((i) => i.quantity > 0),
     })),
 
-  setOverridePrice: (productId, price, reason) =>
+  setOverridePrice: (cartKey, price, reason) =>
     set((state) => ({
       items: state.items.map((i) =>
-        i.id === productId
+        i.cartKey === cartKey
           ? { ...i, overridePrice: price, discountReason: price !== undefined ? reason : undefined }
           : i
       ),
