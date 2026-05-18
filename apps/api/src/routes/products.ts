@@ -276,6 +276,52 @@ productsRouter.patch('/:id', async (c) => {
   return c.json(item);
 });
 
+// Stock breakdown — convert qty of one item into another (e.g. 1×20L oil → 20×1L bottles)
+productsRouter.post('/breakdown', async (c) => {
+  const { storeId } = await getStoreContext(c);
+  if (!storeId) return c.json({ error: 'storeId required' }, 400);
+
+  const body = await c.req.json<{
+    sourceId: string;
+    sourceQty: number;
+    targetId: string;
+    unitsPerSource: number;
+    notes?: string;
+  }>();
+
+  const { sourceId, sourceQty, targetId, unitsPerSource } = body;
+  if (!sourceId || !targetId || !(sourceQty > 0) || !(unitsPerSource > 0)) {
+    return c.json({ error: 'sourceId, targetId, sourceQty > 0, and unitsPerSource > 0 are required' }, 400);
+  }
+  if (sourceId === targetId) {
+    return c.json({ error: 'Source and target must be different items' }, 400);
+  }
+
+  const [source, target] = await Promise.all([
+    prisma.item.findUnique({ where: { id: sourceId }, select: { id: true, name: true, currentStock: true, storeId: true } }),
+    prisma.item.findUnique({ where: { id: targetId }, select: { id: true, name: true, storeId: true } }),
+  ]);
+
+  if (!source || source.storeId !== storeId) return c.json({ error: 'Source item not found' }, 404);
+  if (!target || target.storeId !== storeId) return c.json({ error: 'Target item not found' }, 404);
+  if (Number(source.currentStock) < sourceQty) {
+    return c.json({ error: `Insufficient stock: only ${source.currentStock} units available` }, 400);
+  }
+
+  const targetQty = sourceQty * unitsPerSource;
+  const noteOut = body.notes ?? `Breakdown: ${sourceQty} × ${source.name} → ${targetQty} × ${target.name}`;
+  const noteIn  = `Breakdown from: ${sourceQty} × ${source.name}`;
+
+  await prisma.$transaction([
+    prisma.item.update({ where: { id: sourceId }, data: { currentStock: { decrement: sourceQty } } }),
+    prisma.item.update({ where: { id: targetId }, data: { currentStock: { increment: targetQty } } }),
+    prisma.inventoryAdjustment.create({ data: { itemId: sourceId, quantity: -sourceQty, reasonCode: 'RECOUNT', note: noteOut } }),
+    prisma.inventoryAdjustment.create({ data: { itemId: targetId, quantity: targetQty,  reasonCode: 'RESTOCK', note: noteIn  } }),
+  ]);
+
+  return c.json({ sourceDeducted: sourceQty, targetAdded: targetQty });
+});
+
 // Delete item
 productsRouter.delete('/:id', async (c) => {
   const id = c.req.param('id');
@@ -336,6 +382,13 @@ productsRouter.post(
 
     let succeeded = 0;
     let failed = 0;
+    const failureReasons: string[] = [];
+
+    console.log(`[IMPORT DEBUG] storeId=${storeId} total=${body.products.length} replace=${body.replace}`);
+    if (body.products.length > 0) {
+      const first = body.products[0] as Record<string, unknown>;
+      console.log(`[IMPORT DEBUG] First product sample: name="${first.name}" sku="${first.sku}" costPrice=${first.costPrice} sellingPrice=${first.sellingPrice} nomadBitePrice=${first.nomadBitePrice} unit="${first.unit}" tiers=${(first.packagingTiers as any[])?.length ?? 0}`);
+    }
 
     // Use smaller chunks for transactions if tiers are present
     const CHUNK = 25;
@@ -363,11 +416,24 @@ productsRouter.post(
           });
         })
       );
+      const chunkFailed = results.filter((r) => r.status === 'rejected');
       succeeded += results.filter((r) => r.status === 'fulfilled').length;
-      failed += results.filter((r) => r.status === 'rejected').length;
+      failed += chunkFailed.length;
+      chunkFailed.forEach((r, j) => {
+        const reason = (r as PromiseRejectedResult).reason?.message ?? String((r as PromiseRejectedResult).reason);
+        const p = chunk[j] as Record<string, unknown>;
+        const msg = `chunk[${i + j}] name="${p?.name}" sku="${p?.sku}": ${reason}`;
+        if (failureReasons.length < 20) failureReasons.push(msg);
+        console.error(`[IMPORT ERROR] ${msg}`);
+      });
     }
 
-    return c.json({ succeeded, failed });
+    console.log(`[IMPORT DEBUG] Done: succeeded=${succeeded} failed=${failed}`);
+    if (failureReasons.length > 0) {
+      console.error('[IMPORT FAILURES]', failureReasons.slice(0, 5).join('\n'));
+    }
+
+    return c.json({ succeeded, failed, firstErrors: failureReasons.slice(0, 5) });
   }
 );
 

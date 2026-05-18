@@ -37,6 +37,12 @@ export function useImportProducts() {
   return useMutation({
     mutationFn: ({ products, replace }: { products: Product[]; replace: boolean }) =>
       api.products.import(products as never, replace),
-    onSuccess: () => qc.invalidateQueries({ queryKey: PRODUCTS_KEY }),
+    onSuccess: (data) => {
+      console.log(`[IMPORT RESULT] succeeded=${data.succeeded} failed=${data.failed}`);
+      if (data.firstErrors?.length) {
+        console.error('[IMPORT FIRST ERRORS]', data.firstErrors);
+      }
+      qc.invalidateQueries({ queryKey: PRODUCTS_KEY });
+    },
   });
 }

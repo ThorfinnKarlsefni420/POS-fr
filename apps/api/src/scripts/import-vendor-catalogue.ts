@@ -15,6 +15,7 @@ import { readFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { Pool } from 'pg';
 import * as XLSX from 'xlsx';
+import { inferPackaging } from '../lib/packaging-inference.js';
 
 const STORE_ID = 'store_hasans';
 
@@ -112,6 +113,19 @@ async function main() {
     try {
       const canonicalName = row.correctName || row.dbName;
       const vendorCodeSlug = slugify(row.dbName);
+
+      // Auto-infer packaging when the vendor left L1/L2 cells blank
+      if (!row.l1Qty && !row.l2Qty) {
+        const inferred = inferPackaging(row.dbName, row.category);
+        if (!row.l1Name && inferred.l1Name) row.l1Name = inferred.l1Name;
+        if (!row.l1Qty  && inferred.l1Qty)  row.l1Qty  = inferred.l1Qty;
+        if (!row.l2Name && inferred.l2Name) row.l2Name = inferred.l2Name;
+        if (!row.l2Qty  && inferred.l2Qty)  row.l2Qty  = inferred.l2Qty;
+      } else if (row.l2Name && !row.l2Qty) {
+        // Has L2 name but missing qty — fill qty only
+        const inferred = inferPackaging(row.dbName, row.category);
+        if (inferred.l2Qty) row.l2Qty = inferred.l2Qty;
+      }
 
       // If base unit is a packaging tier word, it means we only have bulk data — normalise
       const packWords = /^(carton|box|bag|bale|outer|pack|sack|jerry\s*can|bundle)$/i;
@@ -216,7 +230,9 @@ async function main() {
         await insertTier(1, row.l1Name, row.l1Qty, row.l1Cost, row.l1Sell);
       }
       if (row.l2Name) {
-        const qtyInBase_L2 = (row.l1Qty && row.l2Qty) ? row.l1Qty * row.l2Qty : null;
+        // When no L1 tier, L2 qty is already "qty in base" (L1 implicitly = 1)
+        const l1QtyForCalc = row.l1Qty || 1;
+        const qtyInBase_L2 = row.l2Qty ? l1QtyForCalc * row.l2Qty : null;
         await insertTier(2, row.l2Name, qtyInBase_L2, row.l2Cost, row.l2Sell);
       }
 

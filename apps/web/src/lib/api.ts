@@ -152,9 +152,14 @@ export const api = {
         body: JSON.stringify({ vatClassId, vatOverrideReason, needsVatConfirmation: false }),
       }),
     import: (products: ApiItem[], replace: boolean) =>
-      req<{ succeeded: number; failed: number }>('/products/import', {
+      req<{ succeeded: number; failed: number; firstErrors?: string[] }>('/products/import', {
         method: 'POST',
         body: JSON.stringify({ products, replace }),
+      }),
+    breakdown: (sourceId: string, sourceQty: number, targetId: string, unitsPerSource: number, notes?: string) =>
+      req<{ sourceDeducted: number; targetAdded: number }>('/products/breakdown', {
+        method: 'POST',
+        body: JSON.stringify({ sourceId, sourceQty, targetId, unitsPerSource, notes }),
       }),
     adjustStock: (id: string, delta: number, reasonCode = 'RESTOCK', note?: string, tierId?: string) =>
       req<ApiItem>(`/products/${id}/adjust`, {

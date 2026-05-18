@@ -15,9 +15,13 @@ function makeCartKey(productId: string, tierId?: string) {
   return `${productId}:${tierId ?? 'base'}`;
 }
 
+function effectiveBasePrice(product: Product): number {
+  return product.nomadBitePrice > 0 ? product.nomadBitePrice : product.sellingPrice;
+}
+
 function tierSellingPrice(product: Product, tier: PackagingTier): number {
   if (tier.sellingPriceOverride != null) return tier.sellingPriceOverride;
-  return product.nomadBitePrice * tier.quantityInBase;
+  return effectiveBasePrice(product) * tier.quantityInBase;
 }
 
 const getEffectivePrice = (item: CartItem) =>
@@ -28,7 +32,8 @@ export const useCartStore = create<CartState>((set, get) => ({
 
   addItem: (product, tier) => {
     const cartKey = makeCartKey(product.id, tier?.id);
-    const sellingPrice = tier ? tierSellingPrice(product, tier) : product.nomadBitePrice;
+    const sellingPrice = tier ? tierSellingPrice(product, tier) : effectiveBasePrice(product);
+    console.log(`[CART DEBUG] addItem "${product.name}" | nomadBitePrice=${product.nomadBitePrice} sellingPrice=${product.sellingPrice} costPrice=${product.costPrice} | tier=${tier?.name ?? 'none'} | cartPrice=${sellingPrice}`);
 
     set((state) => {
       const existing = state.items.find((i) => i.cartKey === cartKey);

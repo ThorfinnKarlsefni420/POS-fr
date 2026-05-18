@@ -17,7 +17,7 @@ import { StockTransferDialog } from './stock-transfer-dialog';
 import {
   Search, Pencil, Trash2, Package, ImageUp, Loader2, SlidersHorizontal,
   Plus, X, Check, Layers, ArrowRightLeft, Warehouse, ShoppingBag, Monitor,
-  MoreHorizontal, Truck, Barcode, History, TrendingUp, TrendingDown,
+  MoreHorizontal, Truck, Barcode, History, TrendingUp, TrendingDown, Scissors,
 } from 'lucide-react';
 
 const LOCATION_TYPE_ICONS: Record<string, typeof Warehouse> = {
@@ -540,6 +540,32 @@ export function InventoryTable({ recountFilter = false, stockFilter = 'all', add
   const [transferOpen, setTransferOpen] = useState(false);
   const { data: editItemStock } = useItemStock(editItem?.id ?? null);
 
+  // Breakdown dialog state
+  const [breakdownSource, setBreakdownSource] = useState<Product | null>(null);
+  const [breakdownSourceQty, setBreakdownSourceQty] = useState('1');
+  const [breakdownTargetId, setBreakdownTargetId] = useState('');
+  const [breakdownRatio, setBreakdownRatio] = useState('');
+  const [breakdownNote, setBreakdownNote] = useState('');
+  const [breakdownBusy, setBreakdownBusy] = useState(false);
+
+  const handleBreakdown = async () => {
+    if (!breakdownSource || !breakdownTargetId || !breakdownSourceQty || !breakdownRatio) return;
+    const sQty = Number(breakdownSourceQty);
+    const ratio = Number(breakdownRatio);
+    if (!(sQty > 0) || !(ratio > 0)) return;
+    setBreakdownBusy(true);
+    try {
+      const res = await api.products.breakdown(breakdownSource.id, sQty, breakdownTargetId, ratio, breakdownNote || undefined);
+      alert(`Done: removed ${res.sourceDeducted} from source, added ${res.targetAdded} to target.`);
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      setBreakdownSource(null);
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setBreakdownBusy(false);
+    }
+  };
+
   // Adjust stock dialog state
   const [adjustItem, setAdjustItem] = useState<Product | null>(null);
   const [adjustDelta, setAdjustDelta] = useState('');
@@ -759,6 +785,13 @@ export function InventoryTable({ recountFilter = false, stockFilter = 'all', add
                               className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                             >
                               <SlidersHorizontal className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => { setBreakdownSource(p); setBreakdownSourceQty('1'); setBreakdownTargetId(''); setBreakdownRatio(''); setBreakdownNote(''); }}
+                              title="Break down into another item"
+                              className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                            >
+                              <Scissors className="h-3.5 w-3.5" />
                             </button>
                             <button onClick={() => openEdit(p)} className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                               <Pencil className="h-3.5 w-3.5" />
@@ -1361,6 +1394,90 @@ export function InventoryTable({ recountFilter = false, stockFilter = 'all', add
       )}
 
       {/* ── Stock Adjustment dialog ─────────────────────────────────────── */}
+      {/* ── Stock Breakdown Dialog ────────────────────────────────────────────── */}
+      <Dialog open={!!breakdownSource} onOpenChange={(o) => { if (!o) setBreakdownSource(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-black">Break Down Stock</DialogTitle>
+            {breakdownSource && (
+              <p className="text-sm text-muted-foreground mt-1">
+                Source: <strong>{breakdownSource.name}</strong> · in stock: <strong>{breakdownSource.currentStock}</strong>
+              </p>
+            )}
+          </DialogHeader>
+          <div className="space-y-4 pt-1">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Qty to break down</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={breakdownSourceQty}
+                  onChange={(e) => setBreakdownSourceQty(e.target.value)}
+                  placeholder="e.g. 1"
+                  autoFocus
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Units per source</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={breakdownRatio}
+                  onChange={(e) => setBreakdownRatio(e.target.value)}
+                  placeholder="e.g. 20"
+                />
+              </div>
+            </div>
+            {breakdownSourceQty && breakdownRatio && Number(breakdownSourceQty) > 0 && Number(breakdownRatio) > 0 && (
+              <p className="text-xs text-muted-foreground bg-muted rounded-lg px-3 py-2">
+                {breakdownSourceQty} × source → <strong>{Number(breakdownSourceQty) * Number(breakdownRatio)}</strong> units added to target
+              </p>
+            )}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Target item</Label>
+              <select
+                value={breakdownTargetId}
+                onChange={(e) => setBreakdownTargetId(e.target.value)}
+                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">— select target —</option>
+                {products
+                  .filter((p) => p.id !== breakdownSource?.id)
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} (stock: {p.currentStock})
+                    </option>
+                  ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Note (optional)</Label>
+              <Input
+                placeholder="e.g. Bottled from 20L jerry can"
+                value={breakdownNote}
+                onChange={(e) => setBreakdownNote(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setBreakdownSource(null)} className="flex-1 py-2.5 rounded-lg border font-semibold text-sm hover:bg-muted transition-colors">
+                Cancel
+              </button>
+              <button
+                onClick={handleBreakdown}
+                disabled={breakdownBusy || !breakdownTargetId || !breakdownRatio || !breakdownSourceQty}
+                className="flex-1 py-2.5 rounded-lg font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-1.5"
+                style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
+              >
+                {breakdownBusy && <Loader2 className="h-4 w-4 animate-spin" />}
+                Break Down
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!adjustItem} onOpenChange={() => setAdjustItem(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>

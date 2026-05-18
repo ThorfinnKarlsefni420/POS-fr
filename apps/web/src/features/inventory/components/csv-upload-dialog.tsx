@@ -89,10 +89,20 @@ export function CsvUploadDialog({ open, onClose }: Props) {
     const toSend = replaceAll
       ? parseResult.products
       : tagged.filter((p) => p._status !== 'unchanged').map(({ _status, _oldCostPrice, _oldSellingPrice, ...p }) => p as Product);
+    console.log(`[IMPORT DEBUG] Sending ${toSend.length} products (replaceAll=${replaceAll}). Breakdown: new=${counts.new} priceChange=${counts['price-change']} updated=${counts.updated} unchanged=${counts.unchanged}`);
+    if (toSend.length > 0) {
+      const s = toSend[0];
+      console.log(`[IMPORT DEBUG] Sample product: name="${s.name}" sku="${s.sku}" costPrice=${s.costPrice} sellingPrice=${s.sellingPrice} nomadBitePrice=${s.nomadBitePrice} tiers=${s.packagingTiers?.length ?? 0}`);
+    }
     try {
-      await importProducts.mutateAsync({ products: toSend, replace: replaceAll });
+      const result = await importProducts.mutateAsync({ products: toSend, replace: replaceAll });
+      console.log(`[IMPORT DEBUG] API response:`, result);
+      if ((result as any).failed > 0) {
+        console.error(`[IMPORT DEBUG] ${(result as any).failed} items failed. First errors:`, (result as any).firstErrors);
+      }
       setStep('done');
     } catch (err) {
+      console.error('[IMPORT DEBUG] Import threw:', err);
       setImportError(err instanceof Error ? err.message : 'Import failed — check that the server and database are running.');
     }
   };

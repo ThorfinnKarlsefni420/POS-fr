@@ -32,9 +32,10 @@ export function CheckoutModal({ open, onClose, total }: Props) {
       const baseQty = item.selectedTier
         ? item.quantity * Number(item.selectedTier.quantityInBase)
         : item.quantity;
+      const basePrice = item.nomadBitePrice > 0 ? item.nomadBitePrice : item.sellingPrice;
       const tierPrice = item.selectedTier
-        ? (item.selectedTier.sellingPriceOverride ?? item.nomadBitePrice * Number(item.selectedTier.quantityInBase))
-        : item.sellingPrice;
+        ? (item.selectedTier.sellingPriceOverride ?? basePrice * Number(item.selectedTier.quantityInBase))
+        : basePrice;
       return {
         id: item.id,
         quantity: baseQty,
