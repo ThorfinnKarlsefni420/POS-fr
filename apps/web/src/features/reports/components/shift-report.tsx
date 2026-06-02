@@ -63,7 +63,11 @@ export function ShiftReport({ from, to }: Props) {
               <th className="text-left p-3 font-semibold">Duration</th>
               <th className="text-right p-3 font-semibold">Txns</th>
               <th className="text-right p-3 font-semibold">Total Sales</th>
-              <th className="text-right p-3 font-semibold">Expected Cash</th>
+              <th className="text-right p-3 font-semibold">Cash Sales</th>
+              <th className="text-right p-3 font-semibold">
+                Expected in Till
+                <span className="block text-[10px] font-normal text-muted-foreground normal-case">float + cash sales</span>
+              </th>
               <th className="text-right p-3 font-semibold">Actual Cash</th>
               <th className="text-right p-3 font-semibold">Variance</th>
             </tr>
@@ -78,7 +82,13 @@ export function ShiftReport({ from, to }: Props) {
                   <td className="p-3 text-muted-foreground">{duration(sh.startTime, sh.endTime)}</td>
                   <td className="p-3 text-right">{sh.transactionCount}</td>
                   <td className="p-3 text-right font-semibold">{kes(sh.totalSales)}</td>
-                  <td className="p-3 text-right text-muted-foreground">{kes(sh.expectedCash)}</td>
+                  <td className="p-3 text-right text-muted-foreground">{kes(sh.cashSales)}</td>
+                  <td className="p-3 text-right">
+                    <span className="font-semibold">{kes(sh.expectedCash)}</span>
+                    <span className="block text-[10px] text-muted-foreground">
+                      {kes(sh.startingCash)} float + {kes(sh.cashSales)}
+                    </span>
+                  </td>
                   <td className="p-3 text-right">{sh.actualCash !== null ? kes(sh.actualCash) : '—'}</td>
                   <td className="p-3 text-right font-bold" style={{ color: varColor }}>
                     {sh.variance !== null ? `${sh.variance >= 0 ? '+' : ''}${kes(sh.variance)}` : '—'}

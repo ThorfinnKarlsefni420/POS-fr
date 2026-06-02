@@ -8,6 +8,7 @@ export interface PackagingTier {
   sellingPriceOverride?: number | null; // optional bulk selling price override
   barcode?: string | null;
   isBaseUnit: boolean;        // true = the tier sold individually at POS
+  roundingPrecision?: number; // base-unit qty rounded to this step after conversion (default 0.001)
 }
 
 export interface Product {
@@ -47,9 +48,10 @@ export interface CartItem extends Product {
   selectedTier?: PackagingTier; // the packaging tier chosen at add-to-cart time
   overridePrice?: number;     // manual price override (per selected tier unit)
   discountReason?: string;
+  baseUnitPrice: number;      // original per-base-unit price; never changes after addItem
 }
 
-export type PaymentType = 'CASH';
+export type PaymentType = 'CASH' | 'MKOPO' | 'SPLIT';
 
 export interface CartTotals {
   subtotal: number;

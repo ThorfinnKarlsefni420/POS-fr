@@ -3,8 +3,9 @@ import { SalesReport } from './components/sales-report';
 import { ShiftReport } from './components/shift-report';
 import { InventoryReport } from './components/inventory-report';
 import { VatReport } from './components/vat-report';
+import { MkopoReport } from './components/mkopo-report';
 
-type Tab = 'sales' | 'shifts' | 'inventory' | 'vat';
+type Tab = 'sales' | 'shifts' | 'inventory' | 'vat' | 'mkopo';
 type Preset = '7d' | '30d' | '3m' | '1y';
 
 function getRange(preset: Preset): { from: string; to: string } {
@@ -32,6 +33,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: 'shifts', label: 'Shifts' },
   { key: 'inventory', label: 'Inventory' },
   { key: 'vat', label: 'VAT Return' },
+  { key: 'mkopo', label: 'Mkopo' },
 ];
 
 function getVatMonthRange(monthOffset: number): { from: string; to: string; label: string } {
@@ -61,8 +63,8 @@ export function ReportsPage() {
           <p className="text-sm text-muted-foreground">Sales, shifts, and inventory analytics</p>
         </div>
 
-        {/* Date range — hidden for inventory; VAT gets its own month picker */}
-        {tab !== 'inventory' && tab !== 'vat' && (
+        {/* Date range — hidden for inventory, vat, and mkopo tabs */}
+        {tab !== 'inventory' && tab !== 'vat' && tab !== 'mkopo' && (
           <div className="flex gap-1 bg-muted p-1 rounded-lg">
             {PRESETS.map(p => (
               <button
@@ -121,6 +123,7 @@ export function ReportsPage() {
         {tab === 'shifts' && <ShiftReport from={range.from} to={range.to} />}
         {tab === 'inventory' && <InventoryReport />}
         {tab === 'vat' && <VatReport from={vatRange.from} to={vatRange.to} />}
+        {tab === 'mkopo' && <MkopoReport />}
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ interface CartState {
   addItem: (product: Product, tier?: PackagingTier) => void;
   removeItem: (cartKey: string) => void;
   updateQuantity: (cartKey: string, quantity: number) => void;
+  switchTier: (cartKey: string, newTier: PackagingTier | undefined) => void;
   setOverridePrice: (cartKey: string, price: number | undefined, reason?: string) => void;
   clearCart: () => void;
   totals: () => CartTotals;
@@ -19,9 +20,9 @@ function effectiveBasePrice(product: Product): number {
   return product.nomadBitePrice > 0 ? product.nomadBitePrice : product.sellingPrice;
 }
 
-function tierSellingPrice(product: Product, tier: PackagingTier): number {
+function tierSellingPrice(baseUnitPrice: number, tier: PackagingTier): number {
   if (tier.sellingPriceOverride != null) return tier.sellingPriceOverride;
-  return effectiveBasePrice(product) * tier.quantityInBase;
+  return baseUnitPrice * tier.quantityInBase;
 }
 
 const getEffectivePrice = (item: CartItem) =>
@@ -32,8 +33,8 @@ export const useCartStore = create<CartState>((set, get) => ({
 
   addItem: (product, tier) => {
     const cartKey = makeCartKey(product.id, tier?.id);
-    const sellingPrice = tier ? tierSellingPrice(product, tier) : effectiveBasePrice(product);
-    console.log(`[CART DEBUG] addItem "${product.name}" | nomadBitePrice=${product.nomadBitePrice} sellingPrice=${product.sellingPrice} costPrice=${product.costPrice} | tier=${tier?.name ?? 'none'} | cartPrice=${sellingPrice}`);
+    const baseUnitPrice = effectiveBasePrice(product);
+    const sellingPrice = tier ? tierSellingPrice(baseUnitPrice, tier) : baseUnitPrice;
 
     set((state) => {
       const existing = state.items.find((i) => i.cartKey === cartKey);
@@ -50,6 +51,7 @@ export const useCartStore = create<CartState>((set, get) => ({
         quantity: 1,
         selectedTier: tier,
         sellingPrice,
+        baseUnitPrice,
       };
       return { items: [...state.items, newItem] };
     });
@@ -66,6 +68,39 @@ export const useCartStore = create<CartState>((set, get) => ({
         .map((i) => (i.cartKey === cartKey ? { ...i, quantity: Math.max(0, quantity) } : i))
         .filter((i) => i.quantity > 0),
     })),
+
+  switchTier: (cartKey, newTier) => {
+    const { items } = get();
+    const item = items.find((i) => i.cartKey === cartKey);
+    if (!item) return;
+
+    const newCartKey = makeCartKey(item.id, newTier?.id);
+    if (newCartKey === cartKey) return;
+
+    const newSellingPrice = newTier
+      ? tierSellingPrice(item.baseUnitPrice, newTier)
+      : item.baseUnitPrice;
+
+    set((state) => {
+      const collision = state.items.find((i) => i.cartKey === newCartKey);
+      if (collision) {
+        // Target tier already has a line — merge quantities, drop current line
+        return {
+          items: state.items
+            .map((i) => i.cartKey === newCartKey ? { ...i, quantity: i.quantity + item.quantity } : i)
+            .filter((i) => i.cartKey !== cartKey),
+        };
+      }
+      // Update in place: swap tier, recalculate price, clear any stale discount
+      return {
+        items: state.items.map((i) =>
+          i.cartKey === cartKey
+            ? { ...i, cartKey: newCartKey, selectedTier: newTier, sellingPrice: newSellingPrice, overridePrice: undefined, discountReason: undefined }
+            : i
+        ),
+      };
+    });
+  },
 
   setOverridePrice: (cartKey, price, reason) =>
     set((state) => ({

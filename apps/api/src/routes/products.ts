@@ -31,6 +31,7 @@ function withEtimsCode<T extends { category: string; vatClass: { id: string; cod
 const TIER_SELECT = {
   id: true, name: true, level: true, quantityInBase: true,
   costPrice: true, sellingPriceOverride: true, barcode: true, isBaseUnit: true,
+  roundingPrecision: true,
 };
 
 // List all items
@@ -51,6 +52,136 @@ productsRouter.get('/', async (c) => {
 });
 
 // VAT pending — items flagged for manual classification review
+// Expiring products alert — must be before /:id to avoid route clash
+// Replace all tiers for a single item (atomic)
+productsRouter.put('/tiers/:id', async (c) => {
+  const { storeId } = await getStoreContext(c);
+  const itemId = c.req.param('id');
+
+  const item = await prisma.item.findUnique({ where: { id: itemId }, select: { storeId: true } });
+  if (!item || (storeId && item.storeId !== storeId)) return c.json({ error: 'Not found' }, 404);
+
+  const { tiers } = await c.req.json<{
+    tiers: Array<{
+      name: string;
+      qtyInBase: number;
+      costPrice: number;
+      sellingPrice?: number | null;
+      barcode?: string | null;
+    }>;
+  }>();
+
+  await prisma.$transaction(async (tx) => {
+    await tx.packagingTier.deleteMany({ where: { itemId } });
+    if (tiers.length > 0) {
+      await tx.packagingTier.createMany({
+        data: tiers.map((t, i) => ({
+          itemId,
+          name: t.name,
+          level: i,
+          quantityInBase: t.qtyInBase,
+          costPrice: t.costPrice,
+          sellingPriceOverride: t.sellingPrice ?? null,
+          barcode: t.barcode ?? null,
+          isBaseUnit: i === 0,
+          roundingPrecision: 0.001,
+        })),
+      });
+    }
+  });
+
+  return c.json({ ok: true });
+});
+
+// Bulk tier import by SKU — replaces all tiers for each matched product
+productsRouter.post('/tiers/bulk', async (c) => {
+  const { storeId } = await getStoreContext(c);
+  if (!storeId) return c.json({ error: 'storeId required' }, 400);
+
+  const { rows } = await c.req.json<{
+    rows: Array<{
+      sku: string;
+      tierName: string;
+      qtyInBase: number;
+      costPrice: number;
+      sellingPrice?: number | null;
+      barcode?: string | null;
+    }>;
+  }>();
+
+  // Group rows by SKU, sort each group by qtyInBase asc
+  const bySku = new Map<string, typeof rows>();
+  for (const row of rows) {
+    if (!bySku.has(row.sku)) bySku.set(row.sku, []);
+    bySku.get(row.sku)!.push(row);
+  }
+
+  const results: Array<{ sku: string; status: 'ok' | 'skipped'; tiersApplied?: number; reason?: string }> = [];
+
+  for (const [sku, tierRows] of bySku) {
+    const item = await prisma.item.findFirst({ where: { sku, storeId }, select: { id: true } });
+    if (!item) {
+      results.push({ sku, status: 'skipped', reason: 'SKU not found in this store' });
+      continue;
+    }
+    const sorted = [...tierRows].sort((a, b) => a.qtyInBase - b.qtyInBase);
+    await prisma.$transaction(async (tx) => {
+      await tx.packagingTier.deleteMany({ where: { itemId: item.id } });
+      await tx.packagingTier.createMany({
+        data: sorted.map((t, i) => ({
+          itemId: item.id,
+          name: t.tierName,
+          level: i,
+          quantityInBase: t.qtyInBase,
+          costPrice: t.costPrice,
+          sellingPriceOverride: t.sellingPrice ?? null,
+          barcode: t.barcode ?? null,
+          isBaseUnit: i === 0,
+          roundingPrecision: 0.001,
+        })),
+      });
+    });
+    results.push({ sku, status: 'ok', tiersApplied: sorted.length });
+  }
+
+  return c.json({ results });
+});
+
+productsRouter.get('/expiring', async (c) => {
+  const { storeId } = await getStoreContext(c);
+  const days = Math.min(365, Math.max(0, Number(c.req.query('days') ?? '30')));
+  const now = new Date();
+  const cutoff = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+
+  const items = await prisma.item.findMany({
+    where: {
+      ...(storeId ? { storeId } : {}),
+      expiryDate: { not: null, lte: cutoff },
+      currentStock: { gt: 0 },
+    },
+    select: { id: true, name: true, sku: true, category: true, unit: true, currentStock: true, expiryDate: true },
+    orderBy: { expiryDate: 'asc' },
+  });
+
+  return c.json(
+    items.map((item) => {
+      const exp = item.expiryDate!;
+      const daysLeft = Math.ceil((exp.getTime() - now.getTime()) / 86_400_000);
+      return {
+        id: item.id,
+        name: item.name,
+        sku: item.sku,
+        category: item.category,
+        unit: item.unit,
+        currentStock: Number(item.currentStock),
+        expiryDate: exp.toISOString().split('T')[0],
+        daysLeft,
+        status: daysLeft < 0 ? 'EXPIRED' : daysLeft <= 7 ? 'CRITICAL' : 'WARNING',
+      };
+    })
+  );
+});
+
 productsRouter.get('/vat-pending', async (c) => {
   const { storeId } = await getStoreContext(c);
   const [items, catVatMap] = await Promise.all([
@@ -156,6 +287,7 @@ productsRouter.post('/:id/packaging', async (c) => {
       sellingPriceOverride: body.sellingPriceOverride != null ? Number(body.sellingPriceOverride) : null,
       barcode: body.barcode ?? null,
       isBaseUnit: Boolean(body.isBaseUnit ?? false),
+      roundingPrecision: body.roundingPrecision != null ? Number(body.roundingPrecision) : 0.001,
     },
   });
   return c.json(tier, 201);
@@ -182,6 +314,7 @@ productsRouter.patch('/:id/packaging/:tierId', async (c) => {
       }),
       ...(body.barcode !== undefined && { barcode: body.barcode }),
       ...(body.isBaseUnit !== undefined && { isBaseUnit: Boolean(body.isBaseUnit) }),
+      ...(body.roundingPrecision !== undefined && { roundingPrecision: Number(body.roundingPrecision) }),
     },
   });
   return c.json(tier);
@@ -390,42 +523,57 @@ productsRouter.post(
       console.log(`[IMPORT DEBUG] First product sample: name="${first.name}" sku="${first.sku}" costPrice=${first.costPrice} sellingPrice=${first.sellingPrice} nomadBitePrice=${first.nomadBitePrice} unit="${first.unit}" tiers=${(first.packagingTiers as any[])?.length ?? 0}`);
     }
 
-    // Use smaller chunks for transactions if tiers are present
-    const CHUNK = 25;
+    // Process in small chunks matching the pg pool size.
+    // Use two-step approach (no interactive transaction) because PrismaPg + $extends
+    // can cause interactive transaction callbacks to silently fail.
+    // Step 1: upsert item (single idempotent op — always atomic).
+    // Step 2: replace tiers in array-form $transaction (supported by all adapters).
+    const CHUNK = 10;
     for (let i = 0; i < body.products.length; i += CHUNK) {
-      const chunk = body.products.slice(i, i + CHUNK);
+      const chunk = body.products.slice(i, i + CHUNK) as Record<string, unknown>[];
       const results = await Promise.allSettled(
         chunk.map(async (p) => {
           const row = toRow(p);
           const tiers = toTiers(p);
 
-          return await prisma.$transaction(async (tx) => {
-            const item = await tx.item.upsert({
-              where: { storeId_sku: { storeId, sku: row.sku } },
-              update: row,
-              create: row,
-            });
-
-            if (tiers.length > 0) {
-              // Replace tiers: delete old, create new
-              await tx.packagingTier.deleteMany({ where: { itemId: item.id } });
-              await tx.packagingTier.createMany({
-                data: tiers.map((t) => ({ ...t, itemId: item.id })),
-              });
-            }
+          const item = await prisma.item.upsert({
+            where: { storeId_sku: { storeId, sku: row.sku } },
+            update: { ...row, storeId: undefined },
+            create: row,
+            select: { id: true },
           });
+
+          if (tiers.length > 0) {
+            await prisma.$transaction([
+              prisma.packagingTier.deleteMany({ where: { itemId: item.id } }),
+              prisma.packagingTier.createMany({
+                data: tiers.map((t) => ({ ...t, itemId: item.id })),
+              }),
+            ]);
+          }
         })
       );
-      const chunkFailed = results.filter((r) => r.status === 'rejected');
-      succeeded += results.filter((r) => r.status === 'fulfilled').length;
-      failed += chunkFailed.length;
-      chunkFailed.forEach((r, j) => {
-        const reason = (r as PromiseRejectedResult).reason?.message ?? String((r as PromiseRejectedResult).reason);
-        const p = chunk[j] as Record<string, unknown>;
-        const msg = `chunk[${i + j}] name="${p?.name}" sku="${p?.sku}": ${reason}`;
-        if (failureReasons.length < 20) failureReasons.push(msg);
-        console.error(`[IMPORT ERROR] ${msg}`);
+
+      // allSettled preserves order so results[j] corresponds to chunk[j]
+      results.forEach((r, j) => {
+        if (r.status === 'fulfilled') {
+          succeeded++;
+        } else {
+          failed++;
+          const err = (r as PromiseRejectedResult).reason;
+          const reason = err?.message ?? String(err);
+          const code = err?.code ? ` [${err.code}]` : '';
+          const meta = err?.meta ? ` meta=${JSON.stringify(err.meta)}` : '';
+          const p = chunk[j];
+          const msg = `item[${i + j}] name="${p?.name}" sku="${p?.sku}"${code}${meta}: ${reason}`;
+          if (failureReasons.length < 20) failureReasons.push(msg);
+          console.error(`[IMPORT ERROR] ${msg}`);
+        }
       });
+
+      if (i % 100 === 0) {
+        console.log(`[IMPORT DEBUG] Progress: ${i}/${body.products.length} (ok=${succeeded} fail=${failed})`);
+      }
     }
 
     console.log(`[IMPORT DEBUG] Done: succeeded=${succeeded} failed=${failed}`);
@@ -506,7 +654,9 @@ productsRouter.post('/:id/adjust', async (c) => {
   if (body.tierId) {
     const tier = await prisma.packagingTier.findUnique({ where: { id: body.tierId } });
     if (!tier || tier.itemId !== id) return c.json({ error: 'Tier not found' }, 404);
-    deltaInBase = body.delta * Number(tier.quantityInBase);
+    const raw = body.delta * Number(tier.quantityInBase);
+    const precision = Number(tier.roundingPrecision ?? 0.001);
+    deltaInBase = precision > 0 ? Math.round(raw / precision) * precision : raw;
   }
 
   const item = await prisma.item.update({

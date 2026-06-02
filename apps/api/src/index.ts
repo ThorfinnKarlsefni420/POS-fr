@@ -16,6 +16,10 @@ import { mpesaRouter } from './routes/mpesa';
 import { imageSyncRouter } from './routes/image-sync';
 import { locationsRouter } from './routes/locations';
 import { integrationsRouter } from './routes/integrations';
+import { customersRouter } from './routes/customers';
+import { purchaseOrdersRouter } from './routes/purchase-orders';
+import { promosRouter } from './routes/promos';
+import { voiceRouter } from './routes/voice';
 
 const app = new Hono();
 
@@ -47,6 +51,10 @@ app.route('/api/mpesa', mpesaRouter);
 app.route('/api/image-sync', imageSyncRouter);
 app.route('/api/locations', locationsRouter);
 app.route('/api/integrations', integrationsRouter);
+app.route('/api/customers', customersRouter);
+app.route('/api/purchase-orders', purchaseOrdersRouter);
+app.route('/api/promos', promosRouter);
+app.route('/api/voice', voiceRouter);
 
 app.get('/api/health', (c) => c.json({ status: 'ok', db: 'postgres', port: 3001 }));
 

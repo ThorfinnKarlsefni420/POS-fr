@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { ShoppingCart, Package, Settings, Store, RotateCcw, WifiOff, CloudUpload, BarChart2 } from 'lucide-react';
+import { ShoppingCart, Package, Settings, Store, RotateCcw, WifiOff, CloudUpload, BarChart2, Users } from 'lucide-react';
 import { useSettingsStore } from '@/features/admin/store/use-settings-store';
 import { useAuthStore } from '@/features/auth/store/use-auth-store';
 import { useOnlineStatus } from '@/hooks/use-online-status';
@@ -12,6 +12,7 @@ const NAV = [
   { to: '/inventory', icon: Package, label: 'Inventory', adminOnly: false },
   { to: '/returns', icon: RotateCcw, label: 'Returns', adminOnly: false },
   { to: '/reports', icon: BarChart2, label: 'Reports', adminOnly: false },
+  { to: '/customers', icon: Users, label: 'Customers', adminOnly: true },
   { to: '/admin', icon: Settings, label: 'Admin', adminOnly: true },
 ];
 
@@ -21,6 +22,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/returns': 'Returns & Refunds',
   '/reports': 'Reports',
   '/admin': 'Admin Settings',
+  '/customers': 'Customers',
 };
 
 export function AppShell() {

@@ -10,7 +10,7 @@ const IDLE_MS = 15 * 60 * 1000;
 const WARN_MS = 13 * 60 * 1000;
 
 export function Cart() {
-  const { items, removeItem, updateQuantity, clearCart, setOverridePrice, totals } = useCartStore();
+  const { items, removeItem, updateQuantity, clearCart, setOverridePrice, switchTier, totals } = useCartStore();
   const { requireAdmin } = usePinGateStore();
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [activeDiscountId, setActiveDiscountId] = useState<string | null>(null);
@@ -140,20 +140,42 @@ export function Cart() {
                 <div key={item.cartKey}>
                   <div className="px-4 py-3 flex gap-3">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <p className="text-xs font-semibold truncate leading-tight">{item.name}</p>
-                        {item.selectedTier && (
-                          <span className="shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded-full border"
-                            style={{ borderColor: 'oklch(0.477 0.216 27.3 / 0.3)', color: 'var(--primary)', background: 'oklch(0.477 0.216 27.3 / 0.08)' }}>
-                            {item.selectedTier.name}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {item.selectedTier
-                          ? `${item.selectedTier.name} · ${Number(item.selectedTier.quantityInBase).toLocaleString()} ${item.unit || 'pcs'} each`
-                          : item.unit}
-                      </p>
+                      <p className="text-xs font-semibold truncate leading-tight">{item.name}</p>
+                      {/* Inline tier switcher — only when product has multiple packaging options */}
+                      {(() => {
+                        const switchable = (item.packagingTiers ?? []).filter((t) => !t.isBaseUnit && t.level > 0);
+                        if (switchable.length === 0) return (
+                          <p className="text-xs text-muted-foreground mt-0.5">{item.unit}</p>
+                        );
+                        const currentId = item.selectedTier?.id;
+                        return (
+                          <div className="flex gap-1 flex-wrap mt-1">
+                            <button
+                              onClick={() => switchTier(item.cartKey, undefined)}
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-colors ${
+                                currentId === undefined
+                                  ? 'border-primary bg-primary/10 text-primary'
+                                  : 'border-border text-muted-foreground hover:border-primary/40'
+                              }`}
+                            >
+                              {item.unit || 'Piece'}
+                            </button>
+                            {switchable.map((t) => (
+                              <button
+                                key={t.id}
+                                onClick={() => switchTier(item.cartKey, t)}
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition-colors ${
+                                  currentId === t.id
+                                    ? 'border-primary bg-primary/10 text-primary'
+                                    : 'border-border text-muted-foreground hover:border-primary/40'
+                                }`}
+                              >
+                                {t.name}
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
 
                       <div className="flex items-center gap-1.5 mt-1">
                         <p className="text-xs font-bold" style={{ color: 'var(--primary)' }}>

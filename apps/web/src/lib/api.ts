@@ -146,6 +146,7 @@ export const api = {
       req<ApiItem>(`/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id: string) => req<{ ok: boolean }>(`/products/${id}`, { method: 'DELETE' }),
     vatPending: () => req<VatPendingItem[]>('/products/vat-pending'),
+    expiring: (days = 30) => req<ExpiringProduct[]>(`/products/expiring?days=${days}`),
     confirmVatClass: (id: string, vatClassId: string, vatOverrideReason: string) =>
       req<ApiItem>(`/products/${id}`, {
         method: 'PATCH',
@@ -155,6 +156,15 @@ export const api = {
       req<{ succeeded: number; failed: number; firstErrors?: string[] }>('/products/import', {
         method: 'POST',
         body: JSON.stringify({ products, replace }),
+      }),
+    replaceTiers: (
+      itemId: string,
+      tiers: Array<{ name: string; qtyInBase: number; costPrice: number; sellingPrice?: number | null; barcode?: string | null }>,
+    ) => req<{ ok: boolean }>(`/products/tiers/${itemId}`, { method: 'PUT', body: JSON.stringify({ tiers }) }),
+    bulkTiers: (rows: Array<{ sku: string; tierName: string; qtyInBase: number; costPrice: number; sellingPrice?: number | null; barcode?: string | null }>) =>
+      req<{ results: Array<{ sku: string; status: 'ok' | 'skipped'; tiersApplied?: number; reason?: string }> }>('/products/tiers/bulk', {
+        method: 'POST',
+        body: JSON.stringify({ rows }),
       }),
     breakdown: (sourceId: string, sourceQty: number, targetId: string, unitsPerSource: number, notes?: string) =>
       req<{ sourceDeducted: number; targetAdded: number }>('/products/breakdown', {
@@ -271,6 +281,37 @@ export const api = {
         { method: 'POST', body: JSON.stringify(payload) }
       ),
   },
+  purchaseOrders: {
+    list: (status?: string) => req<ApiPO[]>(`/purchase-orders${status ? `?status=${status}` : ''}`),
+    create: (data: { referenceNo?: string; vendorName?: string; expectedAt?: string; notes?: string; lines: ApiPOLineInput[] }) =>
+      req<ApiPODetail>('/purchase-orders', { method: 'POST', body: JSON.stringify(data) }),
+    get: (id: string) => req<ApiPODetail>(`/purchase-orders/${id}`),
+    update: (id: string, data: Partial<{ referenceNo: string; vendorName: string; expectedAt: string | null; notes: string; status: string }>) =>
+      req<ApiPODetail>(`/purchase-orders/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    receive: (id: string, lines: Array<{ lineId: string; receivedQty: number }>, notes?: string) =>
+      req<ApiPODetail>(`/purchase-orders/${id}/receive`, { method: 'POST', body: JSON.stringify({ lines, notes }) }),
+  },
+  promos: {
+    list: (activeOnly?: boolean) => req<ApiPromo[]>(`/promos${activeOnly ? '?active=true' : ''}`),
+    create: (data: ApiPromoInput) => req<ApiPromo>('/promos', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Partial<ApiPromoInput & { isActive: boolean }>) =>
+      req<ApiPromo>(`/promos/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    delete: (id: string) => req<{ ok: boolean }>(`/promos/${id}`, { method: 'DELETE' }),
+    apply: (lines: Array<{ itemId: string; category: string; quantity: number; price: number }>, cartTotal: number) =>
+      req<ApiPromoResult[]>('/promos/apply', { method: 'POST', body: JSON.stringify({ lines, cartTotal }) }),
+  },
+  customers: {
+    list: (q?: string) => req<ApiCustomer[]>(`/customers${q ? `?q=${encodeURIComponent(q)}` : ''}`),
+    search: (q: string) => req<ApiCustomer[]>(`/customers/search?q=${encodeURIComponent(q)}`),
+    create: (data: { name: string; phone?: string; email?: string; creditLimit?: number }) =>
+      req<ApiCustomer>('/customers', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Partial<{ name: string; phone: string; email: string; creditLimit: number }>) =>
+      req<ApiCustomer>(`/customers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    get: (id: string) => req<ApiCustomer>(`/customers/${id}`),
+    overdue: () => req<unknown[]>('/customers/overdue'),
+    recordPayment: (customerId: string, data: { mkopoSaleId: string; amount: number; method: 'CASH' | 'MPESA' | 'BANK_TRANSFER'; recordedById: string; note?: string }) =>
+      req<{ ok: boolean }>(`/customers/${customerId}/payments`, { method: 'POST', body: JSON.stringify(data) }),
+  },
   superadmin: {
     dashboard: () => req<SuperAdminDashboard>('/superadmin/dashboard'),
     inventory: (params?: { storeId?: string; search?: string }) => {
@@ -332,6 +373,7 @@ export interface ApiPackagingTier {
   sellingPriceOverride?: string | number | null;
   barcode?: string | null;
   isBaseUnit: boolean;
+  roundingPrecision?: string | number;
 }
 
 export interface ApiItem {
@@ -427,7 +469,7 @@ export interface ReplenishmentAlert {
 
 // ─── Warehouse Integration types ──────────────────────────────────────────────
 
-export type IntegrationType = 'CSV' | 'WEBHOOK' | 'REST_API' | 'ODOO' | 'QUICKBOOKS' | 'SAGE';
+export type IntegrationType = 'CSV' | 'WEBHOOK' | 'REST_API' | 'ODOO' | 'QUICKBOOKS' | 'SAGE' | 'DYNAMICS_365';
 export type SyncDirection = 'INBOUND' | 'OUTBOUND';
 export type SyncStatus = 'SUCCESS' | 'PARTIAL' | 'FAILED';
 
@@ -494,13 +536,122 @@ export interface ApiSettings {
   cloudinaryUploadPreset: string;
 }
 
+export interface ApiPO {
+  id: string;
+  referenceNo?: string | null;
+  vendorName?: string | null;
+  status: 'DRAFT' | 'ORDERED' | 'PARTIAL' | 'RECEIVED' | 'CANCELLED';
+  expectedAt?: string | null;
+  notes?: string | null;
+  lineCount: number;
+  totalCost: number;
+  receivedPct: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ApiPOLine {
+  id: string;
+  itemId: string;
+  tierId?: string | null;
+  orderedQty: string | number;
+  receivedQty: string | number;
+  unitCost: string | number;
+  notes?: string | null;
+  item: { id: string; name: string; sku: string; unit: string; costPrice: string | number };
+}
+
+export interface ApiPODetail extends Omit<ApiPO, 'lineCount' | 'totalCost' | 'receivedPct'> {
+  lines: ApiPOLine[];
+}
+
+export interface ApiPOLineInput {
+  itemId: string;
+  tierId?: string;
+  orderedQty: number;
+  unitCost: number;
+  notes?: string;
+}
+
+export type PromoType = 'PERCENT_OFF' | 'FIXED_OFF' | 'BOGO';
+export type PromoScope = 'ALL' | 'CATEGORY' | 'ITEM';
+
+export interface ApiPromo {
+  id: string;
+  name: string;
+  type: PromoType;
+  value: string | number;
+  scope: PromoScope;
+  categoryName?: string | null;
+  itemId?: string | null;
+  item?: { id: string; name: string; sku: string } | null;
+  minQty: number;
+  minAmount: string | number;
+  buyQty?: number | null;
+  getQty?: number | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface ApiPromoInput {
+  name: string;
+  type: PromoType;
+  value: number;
+  scope?: PromoScope;
+  categoryName?: string;
+  itemId?: string;
+  minQty?: number;
+  minAmount?: number;
+  buyQty?: number;
+  getQty?: number;
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface ApiPromoResult {
+  promoId: string;
+  promoName: string;
+  type: PromoType;
+  appliedToLineIndex: number;
+  discountedPrice: number;
+  saving: number;
+}
+
+export interface ApiCustomer {
+  id: string;
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  creditLimit: string | number;
+  totalSales?: number;
+  outstandingBalance?: number;
+}
+
 export interface CreateTransactionPayload {
   items: Array<{ id: string; quantity: number; originalPrice: number; soldPrice: number; discountReason?: string }>;
   totalAmount: number;
   taxAmount: number;
-  paymentType: 'CASH' | 'CARD' | 'MPESA';
+  paymentType: 'CASH' | 'CARD' | 'MPESA' | 'MKOPO' | 'SPLIT';
   userId?: string;
   shiftId?: string;
+  customerId?: string;
+  dueDate?: string;
+  payments?: Array<{ method: string; amount: number }>;
+  splitChange?: number;
+}
+
+export interface ExpiringProduct {
+  id: string;
+  name: string;
+  sku: string;
+  category: string;
+  unit: string;
+  currentStock: number;
+  expiryDate: string;
+  daysLeft: number;
+  status: 'EXPIRED' | 'CRITICAL' | 'WARNING';
 }
 
 export interface TransactionResult {
@@ -659,6 +810,7 @@ export function apiItemToProduct(item: ApiItem) {
       sellingPriceOverride: t.sellingPriceOverride != null ? Number(t.sellingPriceOverride) : null,
       barcode: t.barcode ?? null,
       isBaseUnit: t.isBaseUnit,
+      roundingPrecision: t.roundingPrecision != null ? Number(t.roundingPrecision) : 0.001,
     })),
   };
 }

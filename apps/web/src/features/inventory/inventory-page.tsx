@@ -7,9 +7,11 @@ import { VatConfirmDialog } from './components/vat-confirm-dialog';
 import { StockLocationsManager } from './components/stock-locations-manager';
 import { ReplenishmentPanel } from './components/replenishment-panel';
 import { IntegrationsManager } from './components/integrations-manager';
+import { PurchaseOrdersPanel } from './components/purchase-orders-panel';
+import { useExpiringProducts } from '@/hooks/use-expiring-products';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AlertTriangle, Upload, Plus, ImageUp, Download, Package, TrendingUp, ShieldCheck, DollarSign, Warehouse, Globe, Info } from 'lucide-react';
+import { AlertTriangle, Upload, Plus, ImageUp, Download, Package, TrendingUp, ShieldCheck, DollarSign, Warehouse, Globe, Info, ClipboardList, CalendarX } from 'lucide-react';
 import { useProducts } from '@/hooks/use-products';
 import { useAuthStore } from '@/features/auth/store/use-auth-store';
 import { useProfitReport } from '@/features/reports/hooks/use-reports';
@@ -101,6 +103,10 @@ export function InventoryPage() {
   const { data: products = [] } = useProducts();
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPERADMIN';
+
+  const { data: expiringProducts = [] } = useExpiringProducts(30);
+  const expiredCount = expiringProducts.filter((p) => p.status === 'EXPIRED').length;
+  const criticalCount = expiringProducts.filter((p) => p.status === 'CRITICAL').length;
 
   const recountItems = products.filter((p) => p.currentStock < 0);
   const vatPendingCount = products.filter((p) => p.needsVatConfirmation).length;
@@ -318,6 +324,54 @@ export function InventoryPage() {
         </div>
       )}
 
+      {/* ── Expiry alert banner ── */}
+      {expiringProducts.length > 0 && (
+        <div
+          className="shrink-0 rounded-xl border p-4 flex items-center justify-between gap-4"
+          style={
+            expiredCount > 0
+              ? { borderColor: 'oklch(0.5 0.22 27 / 0.4)', background: 'oklch(0.5 0.22 27 / 0.06)' }
+              : { borderColor: 'oklch(0.65 0.15 50 / 0.4)', background: 'oklch(0.65 0.15 50 / 0.06)' }
+          }
+        >
+          <div className="flex items-start gap-3 min-w-0">
+            <CalendarX
+              className="h-4 w-4 shrink-0 mt-0.5"
+              style={{ color: expiredCount > 0 ? 'var(--primary)' : 'oklch(0.55 0.18 50)' }}
+            />
+            <div className="min-w-0">
+              <p
+                className="text-sm font-semibold"
+                style={{ color: expiredCount > 0 ? 'var(--primary)' : 'oklch(0.45 0.15 50)' }}
+              >
+                {expiredCount > 0 && `${expiredCount} expired · `}
+                {criticalCount > 0 && `${criticalCount} expiring within 7 days · `}
+                {expiringProducts.length - expiredCount - criticalCount > 0 &&
+                  `${expiringProducts.length - expiredCount - criticalCount} expiring within 30 days`}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                {expiringProducts
+                  .slice(0, 3)
+                  .map((p) => `${p.name} (${p.daysLeft < 0 ? 'expired' : `${p.daysLeft}d`})`)
+                  .join(', ')}
+                {expiringProducts.length > 3 && ` +${expiringProducts.length - 3} more`}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setActiveTab('analytics')}
+            className="shrink-0 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
+            style={
+              expiredCount > 0
+                ? { background: 'var(--primary)', color: 'var(--primary-foreground)' }
+                : { background: 'oklch(0.55 0.18 50)', color: '#fff' }
+            }
+          >
+            View All
+          </button>
+        </div>
+      )}
+
       {/* ── Recount alert banner ── */}
       {recountItems.length > 0 && showRecountOnly && (
         <div className="shrink-0 rounded-xl border border-red-500/30 bg-red-500/8 p-4">
@@ -364,6 +418,12 @@ export function InventoryPage() {
             <TabsTrigger value="locations" className="flex items-center gap-1.5">
               <Warehouse className="h-3.5 w-3.5" />
               Locations
+            </TabsTrigger>
+          )}
+          {isAdmin && (
+            <TabsTrigger value="purchase-orders" className="flex items-center gap-1.5">
+              <ClipboardList className="h-3.5 w-3.5" />
+              Purchase Orders
             </TabsTrigger>
           )}
           {isAdmin && (
@@ -605,6 +665,80 @@ export function InventoryPage() {
               )}
             </section>
 
+            {/* Expiry Breakdown */}
+            {expiringProducts.length > 0 && (
+              <section>
+                <h2 className="text-sm font-bold mb-3 flex items-center gap-2">
+                  <CalendarX className="h-4 w-4" style={{ color: expiredCount > 0 ? 'var(--primary)' : 'oklch(0.55 0.18 50)' }} />
+                  Expiring Products
+                  <span
+                    className="text-xs px-2 py-0.5 rounded-full font-semibold"
+                    style={
+                      expiredCount > 0
+                        ? { background: 'oklch(0.477 0.216 27.3 / 0.12)', color: 'var(--primary)' }
+                        : { background: 'oklch(0.65 0.15 50 / 0.15)', color: 'oklch(0.45 0.15 50)' }
+                    }
+                  >
+                    {expiringProducts.length} items
+                  </span>
+                </h2>
+                <div className="rounded-xl border bg-card overflow-hidden">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr style={{ background: 'var(--muted)', borderBottom: '1px solid var(--border)' }}>
+                        <th className="text-left p-3 font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
+                        <th className="text-left p-3 font-semibold text-muted-foreground uppercase tracking-wide">Item</th>
+                        <th className="text-left p-3 font-semibold text-muted-foreground uppercase tracking-wide">Category</th>
+                        <th className="text-center p-3 font-semibold text-muted-foreground uppercase tracking-wide">Stock</th>
+                        <th className="text-right p-3 font-semibold text-muted-foreground uppercase tracking-wide">Expiry Date</th>
+                        <th className="text-right p-3 font-semibold text-muted-foreground uppercase tracking-wide">Days Left</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {expiringProducts.map((p) => (
+                        <tr key={p.id} className="hover:bg-muted/30">
+                          <td className="p-3">
+                            <span
+                              className="px-2 py-0.5 rounded-full font-bold"
+                              style={
+                                p.status === 'EXPIRED'
+                                  ? { background: 'oklch(0.477 0.216 27.3 / 0.12)', color: 'var(--primary)' }
+                                  : p.status === 'CRITICAL'
+                                    ? { background: 'oklch(0.65 0.2 27 / 0.15)', color: 'oklch(0.5 0.2 27)' }
+                                    : { background: 'oklch(0.75 0.15 60 / 0.15)', color: 'oklch(0.55 0.15 60)' }
+                              }
+                            >
+                              {p.status === 'EXPIRED' ? 'Expired' : p.status === 'CRITICAL' ? 'Critical' : 'Warning'}
+                            </span>
+                          </td>
+                          <td className="p-3 font-semibold">{p.name}</td>
+                          <td className="p-3 text-muted-foreground">{p.category}</td>
+                          <td className="p-3 text-center text-muted-foreground">{p.currentStock} {p.unit}</td>
+                          <td className="p-3 text-right text-muted-foreground">
+                            {p.expiryDate ? new Date(p.expiryDate).toLocaleDateString('en-KE', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                          </td>
+                          <td className="p-3 text-right">
+                            <span
+                              className="font-mono font-bold"
+                              style={
+                                p.daysLeft < 0
+                                  ? { color: 'var(--primary)' }
+                                  : p.daysLeft <= 7
+                                    ? { color: 'oklch(0.5 0.2 27)' }
+                                    : { color: 'oklch(0.55 0.15 60)' }
+                              }
+                            >
+                              {p.daysLeft < 0 ? `${Math.abs(p.daysLeft)}d ago` : `${p.daysLeft}d`}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+
             {/* Top 10 by margin */}
             <section>
               <h2 className="text-sm font-bold mb-3 flex items-center gap-2">
@@ -791,6 +925,13 @@ export function InventoryPage() {
                 <StockLocationsManager />
               </div>
             </div>
+          </TabsContent>
+        )}
+
+        {/* Purchase Orders tab */}
+        {isAdmin && (
+          <TabsContent value="purchase-orders" className="flex-1 min-h-0 overflow-hidden">
+            <PurchaseOrdersPanel />
           </TabsContent>
         )}
 

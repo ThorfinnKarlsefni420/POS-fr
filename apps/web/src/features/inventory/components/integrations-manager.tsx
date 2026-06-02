@@ -16,12 +16,13 @@ import {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const INTEGRATION_TYPES: { value: IntegrationType; label: string; icon: typeof Globe; desc: string; color: string }[] = [
-  { value: 'CSV',        label: 'CSV / Excel',    icon: FileSpreadsheet, desc: 'Upload a spreadsheet to bulk-update stock and prices.',           color: 'oklch(0.5 0.15 145 / 0.15)' },
-  { value: 'WEBHOOK',    label: 'Webhook',         icon: Webhook,         desc: 'Receive real-time pushes from your WMS or supplier system.',      color: 'oklch(0.5 0.15 240 / 0.15)' },
-  { value: 'REST_API',   label: 'REST API',        icon: Globe,           desc: 'Poll any HTTP endpoint on demand to pull stock or pricing data.', color: 'oklch(0.75 0.15 60 / 0.2)' },
-  { value: 'ODOO',       label: 'Odoo',            icon: Package,         desc: 'Connect to an Odoo ERP inventory module via JSON-RPC.',           color: 'oklch(0.5 0.18 27.3 / 0.15)' },
-  { value: 'QUICKBOOKS', label: 'QuickBooks',      icon: Package,         desc: 'Pull product & quantity data from QuickBooks Online.',            color: 'oklch(0.5 0.15 145 / 0.12)' },
-  { value: 'SAGE',       label: 'SAGE',            icon: Package,         desc: 'Sync inventory from SAGE Business Cloud or SAGE 300.',            color: 'oklch(0.5 0.15 240 / 0.12)' },
+  { value: 'CSV',          label: 'CSV / Excel',      icon: FileSpreadsheet, desc: 'Upload a spreadsheet to bulk-update stock and prices.',                color: 'oklch(0.5 0.15 145 / 0.15)' },
+  { value: 'WEBHOOK',      label: 'Webhook',           icon: Webhook,         desc: 'Receive real-time pushes from your WMS or supplier system.',          color: 'oklch(0.5 0.15 240 / 0.15)' },
+  { value: 'REST_API',     label: 'REST API',          icon: Globe,           desc: 'Poll any HTTP endpoint on demand to pull stock or pricing data.',     color: 'oklch(0.75 0.15 60 / 0.2)' },
+  { value: 'DYNAMICS_365', label: 'Dynamics 365',      icon: Package,         desc: 'Sync products and inventory from Microsoft Dynamics 365 F&O.',       color: 'oklch(0.5 0.15 220 / 0.15)' },
+  { value: 'ODOO',         label: 'Odoo',              icon: Package,         desc: 'Connect to an Odoo ERP inventory module via JSON-RPC.',               color: 'oklch(0.5 0.18 27.3 / 0.15)' },
+  { value: 'QUICKBOOKS',   label: 'QuickBooks',        icon: Package,         desc: 'Pull product & quantity data from QuickBooks Online.',                color: 'oklch(0.5 0.15 145 / 0.12)' },
+  { value: 'SAGE',         label: 'SAGE',              icon: Package,         desc: 'Sync inventory from SAGE Business Cloud or SAGE 300.',                color: 'oklch(0.5 0.15 240 / 0.12)' },
 ];
 
 const INTERNAL_FIELDS: { value: FieldMapping['internalField']; label: string; desc: string }[] = [
@@ -263,6 +264,37 @@ function SetupWizard({ onClose }: WizardProps) {
                   className="text-sm"
                 />
                 <p className="text-[10px] text-muted-foreground">If your system sends <code>{`{ "items": [...] }`}</code>, enter <code>items</code> here.</p>
+              </div>
+            </div>
+          )}
+
+          {type === 'DYNAMICS_365' && (
+            <div className="space-y-3">
+              <div className="rounded-lg bg-muted/30 border p-3 text-xs text-muted-foreground space-y-1">
+                <p className="font-semibold text-foreground">Azure AD app registration required</p>
+                <p>Create an app in Azure Portal with <strong>Dynamics 365 Finance & Operations</strong> API permissions, then copy the values below.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Tenant ID <span className="text-destructive">*</span></Label>
+                  <Input value={credentials.tenantId ?? ''} onChange={(e) => setCred('tenantId', e.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" className="text-sm font-mono" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Client ID <span className="text-destructive">*</span></Label>
+                  <Input value={credentials.clientId ?? ''} onChange={(e) => setCred('clientId', e.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" className="text-sm font-mono" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Client Secret <span className="text-destructive">*</span></Label>
+                <Input type="password" value={credentials.clientSecret ?? ''} onChange={(e) => setCred('clientSecret', e.target.value)} placeholder="Azure AD app secret value" className="text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">D365 Base URL <span className="text-destructive">*</span></Label>
+                <Input value={credentials.d365BaseUrl ?? ''} onChange={(e) => setCred('d365BaseUrl', e.target.value)} placeholder="https://myenv.operations.dynamics.com" className="text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">Retail Server URL <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                <Input value={credentials.retailServerUrl ?? ''} onChange={(e) => setCred('retailServerUrl', e.target.value)} placeholder="https://myenv.commerce.dynamics.com" className="text-sm" />
               </div>
             </div>
           )}
@@ -649,7 +681,7 @@ function IntegrationCard({ integration }: CardProps) {
               Upload & Sync
             </button>
           )}
-          {['REST_API', 'ODOO', 'QUICKBOOKS', 'SAGE'].includes(integration.type) && (
+          {['REST_API', 'ODOO', 'QUICKBOOKS', 'SAGE', 'DYNAMICS_365'].includes(integration.type) && (
             <button
               onClick={triggerRestSync}
               disabled={syncMutation.isPending}

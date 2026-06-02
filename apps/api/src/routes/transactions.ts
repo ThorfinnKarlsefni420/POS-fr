@@ -3,6 +3,8 @@ import { prisma } from '../lib/prisma';
 import { getStoreContext } from '../middleware/store-context';
 import { submitEtimsInvoice } from '../lib/etims';
 import { resolveVatClass, calcLineVat, calcReceiptTotals, VatClassData } from '../lib/vat-engine';
+import { pushTransactionToD365, parseD365Credentials } from '../lib/dynamics365';
+import { decryptCredentials } from '../lib/credentials-crypto';
 
 export const transactionsRouter = new Hono();
 
@@ -14,16 +16,22 @@ transactionsRouter.post('/', async (c) => {
     items: Array<{ id: string; quantity: number; originalPrice: number; soldPrice: number; discountReason?: string }>;
     totalAmount: number;
     taxAmount: number;
-    paymentType: 'CASH' | 'CARD' | 'MPESA' | 'CREDIT';
+    paymentType: 'CASH' | 'CARD' | 'MPESA' | 'CREDIT' | 'MKOPO' | 'SPLIT';
     userId?: string;
     shiftId?: string;
     // Required when paymentType === 'CREDIT'
     vendorId?: string;
     termDays?: number; // defaults to 14
+    // Required when paymentType === 'MKOPO'
+    customerId?: string;
+    dueDate?: string;
   }>();
 
   if (body.paymentType === 'CREDIT' && !body.vendorId) {
     return c.json({ error: 'vendorId is required for credit sales' }, 400);
+  }
+  if (body.paymentType === 'MKOPO' && !body.customerId) {
+    return c.json({ error: 'customerId is required for mkopo sales' }, 400);
   }
 
   // Load items: stock snapshot + VAT class for server-side VAT resolution
@@ -129,7 +137,6 @@ transactionsRouter.post('/', async (c) => {
     include: { lineItems: true },
   });
 
-  // For credit sales, create a CreditSale record linked to this transaction
   if (body.paymentType === 'CREDIT' && body.vendorId) {
     const termDays = body.termDays ?? 14;
     const dueDate = new Date();
@@ -143,6 +150,32 @@ transactionsRouter.post('/', async (c) => {
         dueDate,
       },
     });
+  }
+
+  if (body.paymentType === 'MKOPO' && body.customerId) {
+    await prisma.mkopoSale.create({
+      data: {
+        customerId: body.customerId,
+        transactionId: transaction.id,
+        amountOwed: body.totalAmount,
+        dueDate: body.dueDate ? new Date(body.dueDate) : null,
+      },
+    });
+  }
+
+  if (body.paymentType === 'SPLIT' && body.payments?.length) {
+    await prisma.$transaction([
+      prisma.transactionPayment.createMany({
+        data: body.payments.map((p) => ({
+          transactionId: transaction.id,
+          method: p.method,
+          amount: p.amount,
+        })),
+      }),
+      ...(body.splitChange != null && body.splitChange > 0
+        ? [prisma.transaction.update({ where: { id: transaction.id }, data: { splitChange: body.splitChange } })]
+        : []),
+    ]);
   }
 
   // Fetch parent relationships for break-bulk (Phase 2.1)
@@ -183,6 +216,26 @@ transactionsRouter.post('/', async (c) => {
   const negativeStockItems = updatedItems
     .filter((i) => Number(i.currentStock) < 0)
     .map((i) => ({ id: i.id, name: i.name, stock: Number(i.currentStock) }));
+
+  // D365 push-back — fire-and-forget, never blocks the POS response
+  prisma.warehouseIntegration.findFirst({
+    where: { storeId, type: 'DYNAMICS_365' as never, isActive: true },
+    select: { credentials: true },
+  }).then((integration) => {
+    if (!integration) return;
+    const creds = parseD365Credentials(decryptCredentials(integration.credentials));
+    if (!creds) return;
+    const d365Items = body.items.map((item) => {
+      const snap = stockMap.get(item.id);
+      return { sku: snap?.name ?? item.id, qty: item.quantity, unitPrice: item.soldPrice };
+    });
+    return pushTransactionToD365(creds, {
+      id: transaction.id,
+      totalAmount: body.totalAmount,
+      paymentType: body.paymentType,
+      items: d365Items,
+    });
+  }).catch((err) => console.error('[D365] transaction push error:', err));
 
   // KRA eTIMS — fire-and-forget, never blocks the POS response
   submitEtimsInvoice({

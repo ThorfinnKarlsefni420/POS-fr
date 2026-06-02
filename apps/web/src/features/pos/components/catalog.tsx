@@ -3,10 +3,21 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useCartStore } from '../store/use-cart-store';
 import { useProducts } from '@/hooks/use-products';
 import { useBarcodeScanner } from '@/hooks/use-barcode-scanner';
+import { useVoiceAssist } from '@/hooks/use-voice-assist';
+import { useAuthStore } from '@/features/auth/store/use-auth-store';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Search, Plus, Package, Loader2, Eye, EyeOff, Layers } from 'lucide-react';
+import { Search, Plus, Package, Loader2, Eye, EyeOff, Layers, Mic, MicOff, X } from 'lucide-react';
 import type { PackagingTier, Product } from '@/types/pos';
+
+const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3001/api';
+
+// Kenyan language options for the voice mic
+const LANG_OPTIONS: { code: string; label: string }[] = [
+  { code: 'so', label: 'SO' },  // Somali
+  { code: 'sw', label: 'SW' },  // Swahili
+  { code: 'en', label: 'EN' },  // English
+];
 
 // Card height (px) + row gap (px)
 const CARD_H = 72;
@@ -197,10 +208,29 @@ export function Catalog() {
   const [activeCategory, setActiveCategory] = useState('All');
   const [showOutOfStock, setShowOutOfStock] = useState(false);
   const [tierPickProduct, setTierPickProduct] = useState<Product | null>(null);
+  const [voiceLang, setVoiceLang] = useState('so');
   const addItem = useCartStore((s) => s.addItem);
   const { data: products = [], isLoading, isError } = useProducts();
   const scrollRef = useRef<HTMLDivElement>(null);
   const cols = useCols();
+
+  const user = useAuthStore((s) => s.user);
+  const voiceHeaders = useCallback(() => ({
+    ...(user?.id ? { 'X-User-Id': user.id } : {}),
+    ...(user?.storeId ? { 'X-Store-Id': user.storeId } : {}),
+  }), [user]);
+
+  const {
+    isListening,
+    partial,
+    transcript,
+    suggestions,
+    processing,
+    error: voiceError,
+    startListening,
+    stopListening,
+    clearSuggestions,
+  } = useVoiceAssist(API_BASE, voiceHeaders);
 
   const handleAddProduct = useCallback((product: Product) => {
     const tiers = (product.packagingTiers ?? []).filter((t) => !t.isBaseUnit && t.level > 0);
@@ -276,7 +306,7 @@ export function Catalog() {
 
   return (
     <div className="flex flex-col h-full gap-3">
-      {/* Header: search + toggle + count */}
+      {/* Header: search + mic + toggle + count */}
       <div className="flex flex-col gap-2 shrink-0">
         <div className="flex gap-2">
           <div className="relative flex-1">
@@ -288,6 +318,37 @@ export function Catalog() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+
+          {/* Voice mic button — tap to toggle */}
+          <button
+            onClick={() => isListening ? stopListening() : startListening(voiceLang)}
+            className={`relative flex items-center gap-1.5 px-3 rounded-lg border transition-colors text-xs font-bold whitespace-nowrap select-none ${
+              isListening
+                ? 'bg-primary border-primary text-primary-foreground animate-pulse'
+                : processing
+                  ? 'bg-primary/10 border-primary text-primary'
+                  : 'bg-card border-border text-muted-foreground hover:bg-muted hover:border-primary/40'
+            }`}
+            title={isListening ? 'Tap to stop' : 'Tap to speak — Somali, Swahili, or English'}
+          >
+            {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            {/* Language selector — only when idle */}
+            {!isListening && !processing && (
+              <span
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const idx = LANG_OPTIONS.findIndex((l) => l.code === voiceLang);
+                  setVoiceLang(LANG_OPTIONS[(idx + 1) % LANG_OPTIONS.length].code);
+                }}
+                className="text-[9px] font-black px-1 py-0.5 rounded bg-muted text-muted-foreground cursor-pointer hover:bg-primary/10 hover:text-primary"
+                title="Tap to change language"
+              >
+                {LANG_OPTIONS.find((l) => l.code === voiceLang)?.label ?? 'SO'}
+              </span>
+            )}
+            {processing && <Loader2 className="h-3 w-3 animate-spin" />}
+          </button>
+
           <button
             onClick={() => setShowOutOfStock(!showOutOfStock)}
             className={`flex items-center gap-2 px-3 rounded-lg border transition-colors text-xs font-medium whitespace-nowrap ${
@@ -321,6 +382,72 @@ export function Catalog() {
             </button>
           ))}
         </div>
+
+        {/* Voice strip — live partial, processing indicator, and suggestion chips */}
+        {(isListening && partial) || processing || suggestions.length > 0 || (transcript && !isListening) || voiceError ? (
+          <div className="flex items-center gap-2 overflow-x-auto py-0.5 shrink-0 scrollbar-none">
+            {/* Live partial transcript while streaming */}
+            {isListening && partial && (
+              <span className="shrink-0 text-[10px] text-muted-foreground italic truncate max-w-[220px] animate-pulse">
+                "{partial}"
+              </span>
+            )}
+            {/* LeMUR processing indicator */}
+            {processing && (
+              <span className="shrink-0 flex items-center gap-1 text-[10px] text-primary font-medium">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Processing…
+              </span>
+            )}
+            {/* Final transcript when no suggestions matched */}
+            {transcript && suggestions.length === 0 && !processing && (
+              <span className="shrink-0 text-[10px] text-muted-foreground italic truncate max-w-[200px]">
+                "{transcript}"
+              </span>
+            )}
+            {voiceError && (
+              <span className="shrink-0 text-[10px] text-destructive font-medium">{voiceError}</span>
+            )}
+            {suggestions.map((s) => {
+              const product = products.find((p) => p.id === s.productId);
+              if (!product) return null;
+              const borderColor = s.confidence === 'high'
+                ? 'var(--primary)'
+                : s.confidence === 'medium'
+                  ? 'oklch(0.6 0.15 60)'
+                  : 'var(--border)';
+              return (
+                <button
+                  key={s.productId}
+                  onClick={() => {
+                    handleAddProduct(product);
+                    clearSuggestions();
+                  }}
+                  className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-all hover:opacity-80 active:scale-95"
+                  style={{
+                    border: `1.5px solid ${borderColor}`,
+                    color: 'var(--primary)',
+                    background: 'oklch(0.477 0.216 27.3 / 0.07)',
+                  }}
+                >
+                  <Mic className="h-3 w-3 shrink-0" />
+                  {s.name}
+                  {s.qty && s.qty > 1 ? ` ×${s.qty}` : ''}
+                </button>
+              );
+            })}
+            {/* Dismiss */}
+            {(suggestions.length > 0 || transcript) && !isListening && (
+              <button
+                onClick={clearSuggestions}
+                className="shrink-0 h-6 w-6 flex items-center justify-center rounded-full border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title="Dismiss suggestions"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+        ) : null}
       </div>
 
       {/* States */}

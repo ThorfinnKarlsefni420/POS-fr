@@ -3,8 +3,29 @@ import { randomBytes } from 'crypto';
 import { prisma } from '../lib/prisma';
 import { getStoreContext } from '../middleware/store-context';
 import { runSync, parseCsv, resolvePath, FieldMapping } from '../lib/sync-engine';
+import {
+  fetchD365Products,
+  fetchD365Inventory,
+  parseD365Credentials,
+} from '../lib/dynamics365';
+import {
+  fetchOdooProducts,
+  parseOdooCredentials,
+} from '../lib/odoo';
+import { encryptCredentials, decryptCredentials } from '../lib/credentials-crypto';
 
 export const integrationsRouter = new Hono();
+
+// Fields that must never leave the server — replaced with a sentinel so the
+// UI can show "••••••• (set)" without exposing the actual value.
+const SENSITIVE_KEYS = new Set(['clientSecret', 'password', 'authValue', 'apiKey', 'apiSecret']);
+const REDACTED = '••••••• (set)';
+
+function sanitizeCredentials(creds: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(creds).map(([k, v]) => [k, SENSITIVE_KEYS.has(k) && v ? REDACTED : v])
+  );
+}
 
 // ── List integrations ─────────────────────────────────────────────────────────
 
@@ -26,7 +47,7 @@ integrationsRouter.get('/', async (c) => {
     isActive: i.isActive,
     lastSyncAt: i.lastSyncAt,
     webhookSecret: i.webhookSecret,
-    credentials: i.credentials,
+    credentials: sanitizeCredentials(decryptCredentials(i.credentials)),
     fieldMappings: i.fieldMappings,
     syncCount: i._count.syncLogs,
     createdAt: i.createdAt,
@@ -61,7 +82,7 @@ integrationsRouter.post('/', async (c) => {
       name: body.name.trim(),
       type: body.type as never,
       syncDirection: (body.syncDirection ?? 'INBOUND') as never,
-      credentials: (body.credentials ?? {}) as never,
+      credentials: (body.credentials ? encryptCredentials(body.credentials) : {}) as never,
       fieldMappings: (body.fieldMappings ?? []) as never,
       webhookSecret,
       isActive: body.isActive ?? false,
@@ -90,7 +111,7 @@ integrationsRouter.patch('/:id', async (c) => {
     where: { id },
     data: {
       ...(body.name !== undefined && { name: body.name.trim() }),
-      ...(body.credentials !== undefined && { credentials: body.credentials as never }),
+      ...(body.credentials !== undefined && { credentials: encryptCredentials(body.credentials) as never }),
       ...(body.fieldMappings !== undefined && { fieldMappings: body.fieldMappings as never }),
       ...(body.isActive !== undefined && { isActive: body.isActive }),
       ...(body.syncDirection !== undefined && { syncDirection: body.syncDirection as never }),
@@ -147,9 +168,207 @@ integrationsRouter.post('/:id/sync', async (c) => {
     rows = body.rows;
   } else if (body.csvText) {
     rows = parseCsv(body.csvText);
-  } else if (['REST_API', 'ODOO', 'QUICKBOOKS', 'SAGE'].includes(integration.type)) {
+  } else if (integration.type === 'DYNAMICS_365') {
+    // ── D365: pull products + inventory, then upsert into POS ────────────────
+    const creds = parseD365Credentials(decryptCredentials(integration.credentials));
+    if (!creds) {
+      const log = await prisma.integrationSyncLog.create({
+        data: {
+          integrationId: id,
+          status: 'FAILED',
+          rowsProcessed: 0,
+          rowsSucceeded: 0,
+          rowsFailed: 0,
+          errorMessage: 'D365 credentials incomplete — need tenantId, clientId, clientSecret, d365BaseUrl',
+        },
+      });
+      return c.json({ ok: false, log });
+    }
+
+    let d365Products;
+    try {
+      d365Products = await fetchD365Products(creds);
+    } catch (e) {
+      const log = await prisma.integrationSyncLog.create({
+        data: {
+          integrationId: id,
+          status: 'FAILED',
+          rowsProcessed: 0,
+          rowsSucceeded: 0,
+          rowsFailed: 0,
+          errorMessage: `D365 fetch failed: ${(e as Error).message}`,
+        },
+      });
+      return c.json({ ok: false, log });
+    }
+
+    // Fetch inventory quantities in parallel
+    const skus = d365Products.map((p) => p.sku);
+    const inventoryMap = await fetchD365Inventory(creds, skus).catch(() => new Map<string, number>());
+
+    // Upsert each product — same idempotent pattern as /products/import
+    let succeeded = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
+    const CHUNK = 10;
+    for (let i = 0; i < d365Products.length; i += CHUNK) {
+      const chunk = d365Products.slice(i, i + CHUNK);
+      const results = await Promise.allSettled(
+        chunk.map((p) =>
+          prisma.item.upsert({
+            where: { storeId_sku: { storeId, sku: p.sku } },
+            update: {
+              name: p.name,
+              costPrice: p.costPrice,
+              sellingPrice: p.sellingPrice,
+              category: p.category || undefined,
+              unit: p.unit || undefined,
+              ...(inventoryMap.has(p.sku) ? { currentStock: inventoryMap.get(p.sku)! } : {}),
+            },
+            create: {
+              storeId,
+              name: p.name,
+              sku: p.sku,
+              category: p.category,
+              unit: p.unit,
+              costPrice: p.costPrice,
+              sellingPrice: p.sellingPrice,
+              nomadBitePrice: 0,
+              currentStock: inventoryMap.get(p.sku) ?? 0,
+            },
+          })
+        )
+      );
+
+      for (let j = 0; j < results.length; j++) {
+        const r = results[j];
+        if (r.status === 'fulfilled') {
+          succeeded++;
+        } else {
+          failed++;
+          if (errors.length < 10) {
+            errors.push(`${chunk[j].sku}: ${(r.reason as Error).message}`);
+          }
+        }
+      }
+    }
+
+    const status = failed === 0 ? 'SUCCESS' : succeeded > 0 ? 'PARTIAL' : 'FAILED';
+    const log = await prisma.integrationSyncLog.create({
+      data: {
+        integrationId: id,
+        status: status as never,
+        rowsProcessed: d365Products.length,
+        rowsSucceeded: succeeded,
+        rowsFailed: failed,
+        errorMessage: errors.length > 0 ? errors.slice(0, 5).join(' | ') : null,
+        details: errors.length > 0 ? { errors } as never : undefined,
+      },
+    });
+    await prisma.warehouseIntegration.update({
+      where: { id },
+      data: { lastSyncAt: new Date() },
+    });
+    return c.json({ ok: true, result: { rowsProcessed: d365Products.length, rowsSucceeded: succeeded, rowsFailed: failed, errors }, log });
+  } else if (integration.type === 'ODOO') {
+    const rawCreds = decryptCredentials(integration.credentials);
+    const creds = parseOdooCredentials(rawCreds);
+    if (!creds) {
+      const log = await prisma.integrationSyncLog.create({
+        data: {
+          integrationId: id,
+          status: 'FAILED',
+          rowsProcessed: 0,
+          rowsSucceeded: 0,
+          rowsFailed: 0,
+          errorMessage: 'Missing Odoo credentials (url, db, login, password).',
+        },
+      });
+      return c.json({ ok: false, log });
+    }
+
+    let odooProducts;
+    try {
+      odooProducts = await fetchOdooProducts(creds);
+    } catch (e) {
+      const log = await prisma.integrationSyncLog.create({
+        data: {
+          integrationId: id,
+          status: 'FAILED',
+          rowsProcessed: 0,
+          rowsSucceeded: 0,
+          rowsFailed: 0,
+          errorMessage: `Odoo fetch failed: ${(e as Error).message}`,
+        },
+      });
+      return c.json({ ok: false, log });
+    }
+
+    let succeeded = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
+    const CHUNK = 10;
+    for (let i = 0; i < odooProducts.length; i += CHUNK) {
+      const chunk = odooProducts.slice(i, i + CHUNK);
+      const results = await Promise.allSettled(
+        chunk.map((p) =>
+          prisma.item.upsert({
+            where: { storeId_sku: { storeId, sku: p.sku } },
+            update: {
+              name: p.name,
+              costPrice: p.costPrice,
+              sellingPrice: p.sellingPrice,
+              category: p.category || undefined,
+              unit: p.unit || undefined,
+              taxRate: p.taxRate,
+              currentStock: p.stock,
+            },
+            create: {
+              storeId,
+              name: p.name,
+              sku: p.sku,
+              category: p.category,
+              unit: p.unit,
+              costPrice: p.costPrice,
+              sellingPrice: p.sellingPrice,
+              nomadBitePrice: 0,
+              taxRate: p.taxRate,
+              currentStock: p.stock,
+            },
+          })
+        )
+      );
+
+      for (let j = 0; j < results.length; j++) {
+        const r = results[j];
+        if (r.status === 'fulfilled') {
+          succeeded++;
+        } else {
+          failed++;
+          if (errors.length < 10) errors.push(`${chunk[j].sku}: ${(r.reason as Error).message}`);
+        }
+      }
+    }
+
+    const odooStatus = failed === 0 ? 'SUCCESS' : succeeded > 0 ? 'PARTIAL' : 'FAILED';
+    const odooLog = await prisma.integrationSyncLog.create({
+      data: {
+        integrationId: id,
+        status: odooStatus as never,
+        rowsProcessed: odooProducts.length,
+        rowsSucceeded: succeeded,
+        rowsFailed: failed,
+        errorMessage: errors.length > 0 ? errors.slice(0, 5).join(' | ') : null,
+        details: errors.length > 0 ? { errors } as never : undefined,
+      },
+    });
+    await prisma.warehouseIntegration.update({ where: { id }, data: { lastSyncAt: new Date() } });
+    return c.json({ ok: true, result: { rowsProcessed: odooProducts.length, rowsSucceeded: succeeded, rowsFailed: failed, errors }, log: odooLog });
+  } else if (['REST_API', 'QUICKBOOKS', 'SAGE'].includes(integration.type)) {
     // Fetch from remote URL
-    const creds = integration.credentials as Record<string, string>;
+    const creds = decryptCredentials(integration.credentials) as Record<string, string>;
     const url = creds.url;
     if (!url) {
       fetchError = 'No URL configured for this integration.';

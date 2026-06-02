@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useCartStore } from '../store/use-cart-store';
-import { api, TransactionResult } from '@/lib/api';
+import { api, TransactionResult, ApiCustomer, ApiPromoResult } from '@/lib/api';
 import { useAuthStore } from '@/features/auth/store/use-auth-store';
 import { useOnlineStatus } from '@/hooks/use-online-status';
 import { enqueueOfflineTransaction } from '@/hooks/use-offline-sync';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { CheckCircle, Banknote, Loader2, AlertTriangle, Receipt, WifiOff, Printer } from 'lucide-react';
+import { CheckCircle, Banknote, Loader2, AlertTriangle, Receipt, WifiOff, Printer, UserPlus, Search, CreditCard, Tag, X, Plus } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSettingsStore } from '@/features/admin/store/use-settings-store';
 
@@ -21,17 +21,68 @@ export function CheckoutModal({ open, onClose, total }: Props) {
   const [savedOffline, setSavedOffline] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<TransactionResult | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'MKOPO'>('CASH');
+  const [splitMode, setSplitMode] = useState(false);
+  const [splitPayments, setSplitPayments] = useState<Array<{ method: 'CASH' | 'MPESA' | 'CARD'; amount: string }>>([{ method: 'CASH', amount: '' }]);
+  const [customerQuery, setCustomerQuery] = useState('');
+  const [customerResults, setCustomerResults] = useState<ApiCustomer[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<ApiCustomer | null>(null);
+  const [showNewCustomer, setShowNewCustomer] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState('');
+  const [newCustomerPhone, setNewCustomerPhone] = useState('');
+  const [searchingCustomer, setSearchingCustomer] = useState(false);
+  const [promoResults, setPromoResults] = useState<ApiPromoResult[]>([]);
+  const [appliedPromos, setAppliedPromos] = useState<Set<string>>(new Set());
+  const [loadingPromos, setLoadingPromos] = useState(false);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { subtotal, taxAmount, totalZeroKes, totalExemptKes } = totals();
   const queryClient = useQueryClient();
 
   const zeroStockItems = items.filter((i) => i.currentStock <= 0);
 
-  const buildPayload = () => ({
-    items: items.map((item) => {
-      // If a tier was selected, convert quantity to base units for stock deduction
-      const baseQty = item.selectedTier
+  const handleCustomerSearch = (q: string) => {
+    setCustomerQuery(q);
+    setSelectedCustomer(null);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    if (!q.trim()) { setCustomerResults([]); return; }
+    searchTimeout.current = setTimeout(async () => {
+      setSearchingCustomer(true);
+      try {
+        const res = await api.customers.search(q);
+        setCustomerResults(res);
+      } finally {
+        setSearchingCustomer(false);
+      }
+    }, 300);
+  };
+
+  const handleCreateCustomer = async () => {
+    if (!newCustomerName.trim()) return;
+    const storeId = user?.storeId;
+    if (!storeId) return;
+    const c = await api.customers.create({
+      name: newCustomerName.trim(),
+      phone: newCustomerPhone.trim() || undefined,
+    });
+    setSelectedCustomer(c);
+    setShowNewCustomer(false);
+    setNewCustomerName('');
+    setNewCustomerPhone('');
+    setCustomerQuery(c.name);
+    setCustomerResults([]);
+  };
+
+  const splitTotal = splitPayments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+  const splitChange = Math.max(0, splitTotal - total);
+  const splitReady = splitTotal >= total && splitPayments.some((p) => Number(p.amount) > 0);
+
+  const buildPayload = () => {
+    const lineItems = items.map((item) => {
+      const rawBase = item.selectedTier
         ? item.quantity * Number(item.selectedTier.quantityInBase)
         : item.quantity;
+      const precision = item.selectedTier?.roundingPrecision ?? 0.001;
+      const baseQty = precision > 0 ? Math.round(rawBase / precision) * precision : rawBase;
       const basePrice = item.nomadBitePrice > 0 ? item.nomadBitePrice : item.sellingPrice;
       const tierPrice = item.selectedTier
         ? (item.selectedTier.sellingPriceOverride ?? basePrice * Number(item.selectedTier.quantityInBase))
@@ -43,15 +94,44 @@ export function CheckoutModal({ open, onClose, total }: Props) {
         soldPrice: item.overridePrice ?? tierPrice,
         discountReason: item.discountReason,
       };
-    }),
-    totalAmount: total,
-    taxAmount,
-    paymentType: 'CASH' as const,
-    userId: user?.id,
-    shiftId: shiftId ?? undefined,
-  });
+    });
+
+    if (splitMode) {
+      const paidSplits = splitPayments
+        .filter((p) => Number(p.amount) > 0)
+        .map((p) => ({ method: p.method, amount: Number(p.amount) }));
+      return {
+        items: lineItems,
+        totalAmount: total,
+        taxAmount,
+        paymentType: 'SPLIT' as const,
+        userId: user?.id,
+        shiftId: shiftId ?? undefined,
+        payments: paidSplits,
+        ...(splitChange > 0 ? { splitChange } : {}),
+      };
+    }
+
+    return {
+      items: lineItems,
+      totalAmount: total,
+      taxAmount,
+      paymentType: paymentMethod,
+      userId: user?.id,
+      shiftId: shiftId ?? undefined,
+      ...(paymentMethod === 'MKOPO' && selectedCustomer ? { customerId: selectedCustomer.id } : {}),
+    };
+  };
 
   const handleConfirm = async () => {
+    if (!splitMode && paymentMethod === 'MKOPO' && !selectedCustomer) {
+      alert('Select or create a customer for Mkopo (credit) sale.');
+      return;
+    }
+    if (splitMode && !splitReady) {
+      alert('Total payments must cover the cart total.');
+      return;
+    }
     setLoading(true);
     try {
       if (!isOnline) {
@@ -71,12 +151,45 @@ export function CheckoutModal({ open, onClose, total }: Props) {
     }
   };
 
+  const fetchPromos = async () => {
+    if (!isOnline || items.length === 0) return;
+    setLoadingPromos(true);
+    try {
+      const lines = items.map((item) => ({
+        itemId: item.id,
+        category: item.category,
+        quantity: item.quantity,
+        price: item.overridePrice ?? (item.nomadBitePrice > 0 ? item.nomadBitePrice : item.sellingPrice),
+      }));
+      const results = await api.promos.apply(lines, total);
+      setPromoResults(results);
+    } catch { /* ignore */ } finally {
+      setLoadingPromos(false);
+    }
+  };
+
+  const applyPromo = (result: ApiPromoResult) => {
+    const item = items[result.appliedToLineIndex];
+    if (!item) return;
+    setAppliedPromos((s) => new Set([...s, result.promoId]));
+    useCartStore.getState().setOverridePrice(item.cartKey, result.discountedPrice, result.promoName);
+  };
+
   const handleClose = () => {
     if (done) clearCart();
     setDone(false);
     setResult(null);
     setSavedOffline(false);
     setShowReceipt(false);
+    setPaymentMethod('CASH');
+    setSplitMode(false);
+    setSplitPayments([{ method: 'CASH', amount: '' }]);
+    setSelectedCustomer(null);
+    setCustomerQuery('');
+    setCustomerResults([]);
+    setShowNewCustomer(false);
+    setPromoResults([]);
+    setAppliedPromos(new Set());
     onClose();
   };
 
@@ -89,8 +202,14 @@ export function CheckoutModal({ open, onClose, total }: Props) {
     ),
   ];
 
+  // Fetch applicable promos when the modal opens (only when moving to checkout view, not done)
+  const handleOpenChange = (isOpen: boolean) => {
+    if (isOpen && !done) fetchPromos();
+    if (!isOpen) handleClose();
+  };
+
   return (
-    <Dialog open={open} onOpenChange={handleClose}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-sm border-0 shadow-2xl">
         {done ? (
           showReceipt && result && !savedOffline ? (
@@ -171,9 +290,26 @@ export function CheckoutModal({ open, onClose, total }: Props) {
                   <span>TOTAL</span>
                   <span style={{ color: 'var(--primary)' }}>KES {total.toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Payment</span><span>Cash</span>
-                </div>
+                {splitMode ? (
+                  splitPayments.filter((p) => Number(p.amount) > 0).map((p, i) => (
+                    <div key={i} className="flex justify-between text-xs text-muted-foreground">
+                      <span>{i === 0 ? 'Payment' : ''}</span>
+                      <span>
+                        {p.method === 'CASH' ? 'Cash' : p.method === 'MPESA' ? 'M-Pesa' : 'Card'}
+                        {' '}KES {Number(p.amount).toLocaleString()}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Payment</span>
+                    <span>
+                      {paymentMethod === 'MKOPO'
+                        ? `Mkopo${selectedCustomer ? ` · ${selectedCustomer.name}` : ''}`
+                        : 'Cash'}
+                    </span>
+                  </div>
+                )}
                 {user && (
                   <div className="flex justify-between text-xs text-muted-foreground">
                     <span>Cashier</span><span>{user.name}</span>
@@ -219,12 +355,16 @@ export function CheckoutModal({ open, onClose, total }: Props) {
               </div>
               <div className="text-center">
                 <DialogTitle className="text-xl font-black">
-                  {savedOffline ? 'Saved Offline' : 'Sale Complete'}
+                  {savedOffline ? 'Saved Offline' : paymentMethod === 'MKOPO' ? 'Mkopo Recorded' : 'Sale Complete'}
                 </DialogTitle>
                 <p className="text-muted-foreground text-sm mt-1">
                   {savedOffline
                     ? 'Will sync automatically when reconnected.'
-                    : `KES ${total.toLocaleString()} · Cash`}
+                    : paymentMethod === 'MKOPO' && selectedCustomer
+                      ? `KES ${total.toLocaleString()} on tab · ${selectedCustomer.name}`
+                      : splitMode
+                        ? `KES ${total.toLocaleString()} · ${[...new Set(splitPayments.filter((p) => Number(p.amount) > 0).map((p) => p.method === 'CASH' ? 'Cash' : p.method === 'MPESA' ? 'M-Pesa' : 'Card'))].join(' + ')}`
+                        : `KES ${total.toLocaleString()} · Cash`}
                 </p>
               </div>
 
@@ -313,16 +453,237 @@ export function CheckoutModal({ open, onClose, total }: Props) {
                 </div>
               </div>
 
-              {/* Payment method — cash only */}
-              <div className="flex items-center gap-3 rounded-xl border-2 p-4"
-                style={{ borderColor: 'var(--primary)', background: 'oklch(0.477 0.216 27.3 / 0.07)' }}
-              >
-                <Banknote className="h-5 w-5 shrink-0" style={{ color: 'var(--primary)' }} />
-                <div>
-                  <p className="text-sm font-bold" style={{ color: 'var(--primary)' }}>Cash</p>
-                  <p className="text-[11px] text-muted-foreground">Only payment method accepted</p>
+              {/* Applicable promos */}
+              {(promoResults.length > 0 || loadingPromos) && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <Tag className="h-3 w-3" />
+                    {loadingPromos ? 'Checking promos…' : `${promoResults.length} promo${promoResults.length !== 1 ? 's' : ''} available`}
+                  </p>
+                  {promoResults.map((r) => {
+                    const applied = appliedPromos.has(r.promoId);
+                    return (
+                      <div
+                        key={`${r.promoId}-${r.appliedToLineIndex}`}
+                        className="flex items-center justify-between rounded-xl border px-3 py-2"
+                        style={applied ? { borderColor: 'oklch(0.5 0.15 145)', background: 'oklch(0.5 0.15 145 / 0.05)' } : {}}
+                      >
+                        <div>
+                          <p className="text-xs font-semibold">{r.promoName}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            Save KES {r.saving.toLocaleString(undefined, { maximumFractionDigits: 0 })} on {items[r.appliedToLineIndex]?.name ?? 'item'}
+                          </p>
+                        </div>
+                        {applied ? (
+                          <span className="text-[10px] font-bold text-green-600">Applied</span>
+                        ) : (
+                          <button
+                            onClick={() => applyPromo(r)}
+                            className="text-[11px] font-bold px-2.5 py-1 rounded-lg border"
+                            style={{ borderColor: 'var(--primary)', color: 'var(--primary)' }}
+                          >
+                            Apply
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
+              )}
+
+              {/* Payment section */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-semibold text-muted-foreground">Payment</p>
+                  <button
+                    onClick={() => {
+                      setSplitMode((v) => !v);
+                      if (!splitMode) setSplitPayments([{ method: 'CASH', amount: String(total) }]);
+                    }}
+                    className="text-[11px] font-semibold"
+                    style={{ color: 'var(--primary)' }}
+                  >
+                    {splitMode ? 'Single payment' : 'Split payment'}
+                  </button>
+                </div>
+
+                {splitMode ? (
+                  <div className="space-y-2">
+                    {splitPayments.map((sp, i) => (
+                      <div key={i} className="flex gap-2 items-center">
+                        <select
+                          value={sp.method}
+                          onChange={(e) => setSplitPayments((prev) => prev.map((p, j) => j === i ? { ...p, method: e.target.value as 'CASH' | 'MPESA' | 'CARD' } : p))}
+                          className="rounded-xl border bg-card px-2 py-2 text-xs font-semibold appearance-none shrink-0"
+                        >
+                          <option value="CASH">Cash</option>
+                          <option value="MPESA">M-Pesa</option>
+                          <option value="CARD">Card</option>
+                        </select>
+                        <input
+                          type="number"
+                          min="0"
+                          step="any"
+                          placeholder="Amount"
+                          value={sp.amount}
+                          onChange={(e) => setSplitPayments((prev) => prev.map((p, j) => j === i ? { ...p, amount: e.target.value } : p))}
+                          className="flex-1 rounded-xl border px-3 py-2 text-xs"
+                        />
+                        {splitPayments.length > 1 && (
+                          <button
+                            onClick={() => setSplitPayments((prev) => prev.filter((_, j) => j !== i))}
+                            className="h-7 w-7 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+
+                    {splitPayments.length < 3 && (
+                      <button
+                        onClick={() => setSplitPayments((prev) => [...prev, { method: 'MPESA', amount: '' }])}
+                        className="text-xs font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1"
+                      >
+                        <Plus className="h-3 w-3" /> Add payment method
+                      </button>
+                    )}
+
+                    <div className="rounded-xl bg-muted/60 px-3 py-2 space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">Total paid</span>
+                        <span className={splitTotal >= total ? 'font-bold text-green-600' : 'font-semibold'}>
+                          KES {splitTotal.toLocaleString()}
+                        </span>
+                      </div>
+                      {splitTotal < total && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">Remaining</span>
+                          <span className="font-bold" style={{ color: 'var(--primary)' }}>
+                            KES {(total - splitTotal).toLocaleString()}
+                          </span>
+                        </div>
+                      )}
+                      {splitChange > 0 && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-muted-foreground">Change due</span>
+                          <span className="font-bold text-amber-600">KES {splitChange.toLocaleString()}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['CASH', 'MKOPO'] as const).map((method) => {
+                      const active = paymentMethod === method;
+                      return (
+                        <button
+                          key={method}
+                          onClick={() => setPaymentMethod(method)}
+                          className="flex items-center gap-2 rounded-xl border-2 p-3 transition-colors"
+                          style={{
+                            borderColor: active ? 'var(--primary)' : 'var(--border)',
+                            background: active ? 'oklch(0.477 0.216 27.3 / 0.07)' : 'transparent',
+                          }}
+                        >
+                          {method === 'CASH'
+                            ? <Banknote className="h-4 w-4 shrink-0" style={{ color: active ? 'var(--primary)' : undefined }} />
+                            : <CreditCard className="h-4 w-4 shrink-0" style={{ color: active ? 'var(--primary)' : undefined }} />}
+                          <div className="text-left">
+                            <p className="text-xs font-bold" style={{ color: active ? 'var(--primary)' : undefined }}>
+                              {method === 'CASH' ? 'Cash' : 'Mkopo'}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground leading-tight">
+                              {method === 'CASH' ? 'Paid now' : 'Pay later'}
+                            </p>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
+
+              {/* Customer picker for Mkopo */}
+              {!splitMode && paymentMethod === 'MKOPO' && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-muted-foreground">Customer</p>
+                  {selectedCustomer ? (
+                    <div className="flex items-center justify-between rounded-xl border p-3 bg-muted/40">
+                      <div>
+                        <p className="text-sm font-bold">{selectedCustomer.name}</p>
+                        {selectedCustomer.phone && (
+                          <p className="text-xs text-muted-foreground">{selectedCustomer.phone}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => { setSelectedCustomer(null); setCustomerQuery(''); }}
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        Change
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <div className="flex items-center gap-2 rounded-xl border px-3 py-2">
+                        <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <input
+                          className="flex-1 text-xs bg-transparent outline-none placeholder:text-muted-foreground"
+                          placeholder="Search by name or phone…"
+                          value={customerQuery}
+                          onChange={(e) => handleCustomerSearch(e.target.value)}
+                        />
+                        {searchingCustomer && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                      </div>
+                      {customerResults.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 rounded-xl border bg-background shadow-lg max-h-40 overflow-y-auto">
+                          {customerResults.map((c) => (
+                            <button
+                              key={c.id}
+                              className="w-full text-left px-3 py-2 hover:bg-muted text-xs"
+                              onClick={() => { setSelectedCustomer(c); setCustomerQuery(c.name); setCustomerResults([]); }}
+                            >
+                              <span className="font-medium">{c.name}</span>
+                              {c.phone && <span className="text-muted-foreground ml-2">{c.phone}</span>}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      <button
+                        onClick={() => setShowNewCustomer((v) => !v)}
+                        className="mt-1.5 flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground"
+                      >
+                        <UserPlus className="h-3 w-3" />
+                        New customer
+                      </button>
+                      {showNewCustomer && (
+                        <div className="mt-2 space-y-2 rounded-xl border p-3 bg-muted/40">
+                          <input
+                            className="w-full rounded-lg border px-2.5 py-1.5 text-xs bg-background"
+                            placeholder="Name *"
+                            value={newCustomerName}
+                            onChange={(e) => setNewCustomerName(e.target.value)}
+                          />
+                          <input
+                            className="w-full rounded-lg border px-2.5 py-1.5 text-xs bg-background"
+                            placeholder="Phone (optional)"
+                            value={newCustomerPhone}
+                            onChange={(e) => setNewCustomerPhone(e.target.value)}
+                          />
+                          <button
+                            onClick={handleCreateCustomer}
+                            disabled={!newCustomerName.trim()}
+                            className="w-full py-1.5 rounded-lg text-xs font-bold disabled:opacity-50"
+                            style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
+                          >
+                            Create & Select
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {!isOnline && (
                 <div className="flex items-center gap-2 text-xs font-semibold text-amber-700 bg-amber-500/8 border border-amber-500/20 rounded-lg p-2.5">
@@ -333,12 +694,12 @@ export function CheckoutModal({ open, onClose, total }: Props) {
 
               <button
                 onClick={handleConfirm}
-                disabled={loading}
+                disabled={loading || (!splitMode && paymentMethod === 'MKOPO' && !selectedCustomer) || (splitMode && !splitReady)}
                 className="w-full py-3.5 rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-opacity disabled:opacity-70"
                 style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
               >
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                Confirm · KES {total.toLocaleString()}
+                {splitMode ? 'Confirm Split · ' : paymentMethod === 'MKOPO' ? 'Tab · ' : 'Confirm · '}KES {total.toLocaleString()}
               </button>
             </div>
           </>

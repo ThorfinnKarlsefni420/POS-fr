@@ -14,10 +14,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { StockTransferDialog } from './stock-transfer-dialog';
+import { LabelPrintModal } from './label-print-modal';
+import { PackagingTierEditor } from './packaging-tier-editor';
+import { TierImportDialog } from './tier-import-dialog';
 import {
   Search, Pencil, Trash2, Package, ImageUp, Loader2, SlidersHorizontal,
   Plus, X, Check, Layers, ArrowRightLeft, Warehouse, ShoppingBag, Monitor,
-  MoreHorizontal, Truck, Barcode, History, TrendingUp, TrendingDown, Scissors,
+  MoreHorizontal, Truck, Barcode, History, TrendingUp, TrendingDown, Scissors, Upload,
 } from 'lucide-react';
 
 const LOCATION_TYPE_ICONS: Record<string, typeof Warehouse> = {
@@ -52,323 +55,6 @@ const ADJUST_REASONS = [
   { value: 'PROMO', label: 'Promo / Giveaway' },
   { value: 'RECOUNT', label: 'Recount Correction' },
 ];
-
-const DEFAULT_TIER_NAMES = ['Piece', 'Outer', 'Carton', 'Bale'];
-
-interface TierRowProps {
-  tier: PackagingTier;
-  itemId: string;
-  onUpdated: () => void;
-}
-
-function TierRow({ tier, itemId, onUpdated }: TierRowProps) {
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ ...tier });
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-
-  const save = async () => {
-    setSaving(true);
-    try {
-      await api.products.updateTier(itemId, tier.id, {
-        name: form.name,
-        level: form.level,
-        quantityInBase: form.quantityInBase,
-        costPrice: form.costPrice,
-        sellingPriceOverride: form.sellingPriceOverride ?? undefined,
-        barcode: form.barcode ?? undefined,
-        isBaseUnit: form.isBaseUnit,
-      });
-      onUpdated();
-      setEditing(false);
-    } catch {
-      alert('Failed to save tier');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const remove = async () => {
-    setDeleting(true);
-    try {
-      await api.products.deleteTier(itemId, tier.id);
-      onUpdated();
-    } catch {
-      alert('Failed to delete tier');
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  if (editing) {
-    return (
-      <tr className="bg-muted/40">
-        <td className="p-2">
-          <Input
-            list="tier-names"
-            value={form.name}
-            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            className="h-7 text-xs"
-          />
-          <datalist id="tier-names">
-            {DEFAULT_TIER_NAMES.map((n) => <option key={n} value={n} />)}
-          </datalist>
-        </td>
-        <td className="p-2">
-          <Input
-            type="number" min="0"
-            value={form.level}
-            onChange={(e) => setForm((f) => ({ ...f, level: Number(e.target.value) }))}
-            className="h-7 text-xs w-16"
-          />
-        </td>
-        <td className="p-2">
-          <Input
-            type="number" min="1" step="0.001"
-            value={form.quantityInBase}
-            onChange={(e) => setForm((f) => ({ ...f, quantityInBase: Number(e.target.value) }))}
-            className="h-7 text-xs w-24"
-          />
-        </td>
-        <td className="p-2">
-          <Input
-            type="number" min="0" step="0.01"
-            value={form.costPrice}
-            onChange={(e) => setForm((f) => ({ ...f, costPrice: Number(e.target.value) }))}
-            className="h-7 text-xs w-28"
-          />
-        </td>
-        <td className="p-2">
-          <Input
-            type="number" min="0" step="0.01"
-            placeholder="Auto"
-            value={form.sellingPriceOverride ?? ''}
-            onChange={(e) => setForm((f) => ({
-              ...f,
-              sellingPriceOverride: e.target.value === '' ? null : Number(e.target.value),
-            }))}
-            className="h-7 text-xs w-28"
-          />
-        </td>
-        <td className="p-2">
-          <Input
-            value={form.barcode ?? ''}
-            onChange={(e) => setForm((f) => ({ ...f, barcode: e.target.value || null }))}
-            className="h-7 text-xs w-28"
-          />
-        </td>
-        <td className="p-2 text-center">
-          <input
-            type="checkbox"
-            checked={form.isBaseUnit}
-            onChange={(e) => setForm((f) => ({ ...f, isBaseUnit: e.target.checked }))}
-            className="h-3.5 w-3.5 accent-primary"
-          />
-        </td>
-        <td className="p-2">
-          <div className="flex gap-1">
-            <button
-              onClick={save}
-              disabled={saving}
-              className="h-6 w-6 rounded flex items-center justify-center bg-primary text-primary-foreground hover:opacity-90"
-            >
-              {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-            </button>
-            <button
-              onClick={() => setEditing(false)}
-              className="h-6 w-6 rounded flex items-center justify-center border hover:bg-muted"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </div>
-        </td>
-      </tr>
-    );
-  }
-
-  return (
-    <tr className="border-b border-border/40 hover:bg-muted/20">
-      <td className="p-2 text-xs font-semibold">
-        {tier.name}
-        {tier.isBaseUnit && (
-          <span className="ml-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
-            style={{ background: 'oklch(0.477 0.216 27.3 / 0.12)', color: 'var(--primary)' }}>
-            BASE
-          </span>
-        )}
-      </td>
-      <td className="p-2 text-xs text-muted-foreground text-center">{tier.level}</td>
-      <td className="p-2 text-xs font-mono text-center">{Number(tier.quantityInBase).toLocaleString()}</td>
-      <td className="p-2 text-xs text-right">KES {Number(tier.costPrice).toLocaleString()}</td>
-      <td className="p-2 text-xs text-right text-muted-foreground">
-        {tier.sellingPriceOverride != null ? `KES ${Number(tier.sellingPriceOverride).toLocaleString()}` : '—'}
-      </td>
-      <td className="p-2 text-xs font-mono text-muted-foreground">{tier.barcode ?? '—'}</td>
-      <td className="p-2 text-center">
-        {tier.isBaseUnit ? <Check className="h-3 w-3 mx-auto text-primary" /> : <span className="text-muted-foreground/30">—</span>}
-      </td>
-      <td className="p-2">
-        <div className="flex gap-1">
-          <button
-            onClick={() => setEditing(true)}
-            className="h-6 w-6 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted"
-          >
-            <Pencil className="h-3 w-3" />
-          </button>
-          <button
-            onClick={remove}
-            disabled={deleting}
-            className="h-6 w-6 rounded flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-muted"
-          >
-            {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
-          </button>
-        </div>
-      </td>
-    </tr>
-  );
-}
-
-interface AddTierRowProps {
-  itemId: string;
-  existingLevels: number[];
-  onAdded: () => void;
-}
-
-function AddTierRow({ itemId, existingLevels, onAdded }: AddTierRowProps) {
-  const nextLevel = existingLevels.length > 0 ? Math.max(...existingLevels) + 1 : 0;
-  const [form, setForm] = useState({
-    name: '', level: nextLevel, quantityInBase: 1, costPrice: 0,
-    sellingPriceOverride: '' as string | number,
-    barcode: '', isBaseUnit: existingLevels.length === 0,
-  });
-  const [saving, setSaving] = useState(false);
-  const [open, setOpen] = useState(false);
-
-  const save = async () => {
-    if (!form.name.trim()) return;
-    setSaving(true);
-    try {
-      await api.products.createTier(itemId, {
-        name: form.name.trim(),
-        level: form.level,
-        quantityInBase: form.quantityInBase,
-        costPrice: form.costPrice,
-        sellingPriceOverride: form.sellingPriceOverride === '' ? undefined : Number(form.sellingPriceOverride),
-        barcode: form.barcode || undefined,
-        isBaseUnit: form.isBaseUnit,
-      } as never);
-      onAdded();
-      setForm({
-        name: '', level: nextLevel + 1, quantityInBase: 1, costPrice: 0,
-        sellingPriceOverride: '', barcode: '', isBaseUnit: false,
-      });
-      setOpen(false);
-    } catch {
-      alert('Failed to add tier — check that name and level are unique for this item.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (!open) {
-    return (
-      <tr>
-        <td colSpan={8} className="p-2">
-          <button
-            onClick={() => setOpen(true)}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary transition-colors"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add packaging tier
-          </button>
-        </td>
-      </tr>
-    );
-  }
-
-  return (
-    <tr className="bg-primary/5 border-t border-primary/20">
-      <td className="p-2">
-        <Input
-          list="tier-names-add"
-          placeholder="e.g. Carton"
-          value={form.name}
-          onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-          className="h-7 text-xs"
-          autoFocus
-        />
-        <datalist id="tier-names-add">
-          {DEFAULT_TIER_NAMES.map((n) => <option key={n} value={n} />)}
-        </datalist>
-      </td>
-      <td className="p-2">
-        <Input
-          type="number" min="0"
-          value={form.level}
-          onChange={(e) => setForm((f) => ({ ...f, level: Number(e.target.value) }))}
-          className="h-7 text-xs w-16"
-        />
-      </td>
-      <td className="p-2">
-        <Input
-          type="number" min="1" step="0.001"
-          value={form.quantityInBase}
-          onChange={(e) => setForm((f) => ({ ...f, quantityInBase: Number(e.target.value) }))}
-          className="h-7 text-xs w-24"
-        />
-      </td>
-      <td className="p-2">
-        <Input
-          type="number" min="0" step="0.01"
-          value={form.costPrice}
-          onChange={(e) => setForm((f) => ({ ...f, costPrice: Number(e.target.value) }))}
-          className="h-7 text-xs w-28"
-        />
-      </td>
-      <td className="p-2">
-        <Input
-          type="number" min="0" step="0.01"
-          placeholder="Auto"
-          value={form.sellingPriceOverride}
-          onChange={(e) => setForm((f) => ({ ...f, sellingPriceOverride: e.target.value }))}
-          className="h-7 text-xs w-28"
-        />
-      </td>
-      <td className="p-2">
-        <Input
-          value={form.barcode}
-          onChange={(e) => setForm((f) => ({ ...f, barcode: e.target.value }))}
-          className="h-7 text-xs w-28"
-        />
-      </td>
-      <td className="p-2 text-center">
-        <input
-          type="checkbox"
-          checked={form.isBaseUnit}
-          onChange={(e) => setForm((f) => ({ ...f, isBaseUnit: e.target.checked }))}
-          className="h-3.5 w-3.5 accent-primary"
-        />
-      </td>
-      <td className="p-2">
-        <div className="flex gap-1">
-          <button
-            onClick={save}
-            disabled={saving || !form.name.trim()}
-            className="h-6 w-6 rounded flex items-center justify-center bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50"
-          >
-            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-          </button>
-          <button
-            onClick={() => setOpen(false)}
-            className="h-6 w-6 rounded flex items-center justify-center border hover:bg-muted"
-          >
-            <X className="h-3 w-3" />
-          </button>
-        </div>
-      </td>
-    </tr>
-  );
-}
 
 // ── Item History Panel ────────────────────────────────────────────────────────
 
@@ -537,6 +223,7 @@ export function InventoryTable({ recountFilter = false, stockFilter = 'all', add
     }
   };
 
+  const [tierImportOpen, setTierImportOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const { data: editItemStock } = useItemStock(editItem?.id ?? null);
 
@@ -544,9 +231,57 @@ export function InventoryTable({ recountFilter = false, stockFilter = 'all', add
   const [breakdownSource, setBreakdownSource] = useState<Product | null>(null);
   const [breakdownSourceQty, setBreakdownSourceQty] = useState('1');
   const [breakdownTargetId, setBreakdownTargetId] = useState('');
+  const [breakdownTargetName, setBreakdownTargetName] = useState('');
   const [breakdownRatio, setBreakdownRatio] = useState('');
   const [breakdownNote, setBreakdownNote] = useState('');
   const [breakdownBusy, setBreakdownBusy] = useState(false);
+  const [breakdownTargetMode, setBreakdownTargetMode] = useState<'existing' | 'new'>('existing');
+  const [breakdownNewName, setBreakdownNewName] = useState('');
+  const [breakdownNewUnit, setBreakdownNewUnit] = useState('');
+  const [breakdownNewCategory, setBreakdownNewCategory] = useState('');
+  const [breakdownNewCost, setBreakdownNewCost] = useState('');
+  const [breakdownNewSelling, setBreakdownNewSelling] = useState('');
+  const [breakdownCreating, setBreakdownCreating] = useState(false);
+
+  const resetBreakdown = () => {
+    setBreakdownSource(null);
+    setBreakdownSourceQty('1');
+    setBreakdownTargetId('');
+    setBreakdownTargetName('');
+    setBreakdownRatio('');
+    setBreakdownNote('');
+    setBreakdownTargetMode('existing');
+    setBreakdownNewName('');
+    setBreakdownNewUnit('');
+    setBreakdownNewCategory('');
+    setBreakdownNewCost('');
+    setBreakdownNewSelling('');
+  };
+
+  const handleCreateBreakdownTarget = async () => {
+    if (!breakdownNewName.trim()) return;
+    setBreakdownCreating(true);
+    try {
+      const sku = `BRK-${Date.now().toString(36).toUpperCase()}`;
+      const newItem = await api.products.create({
+        name: breakdownNewName.trim(),
+        sku,
+        category: breakdownNewCategory || breakdownSource?.category || '',
+        unit: breakdownNewUnit || breakdownSource?.unit || '',
+        costPrice: Number(breakdownNewCost) || 0,
+        sellingPrice: Number(breakdownNewSelling) || 0,
+        currentStock: 0,
+      });
+      setBreakdownTargetId(newItem.id);
+      setBreakdownTargetName(newItem.name);
+      setBreakdownTargetMode('existing');
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setBreakdownCreating(false);
+    }
+  };
 
   const handleBreakdown = async () => {
     if (!breakdownSource || !breakdownTargetId || !breakdownSourceQty || !breakdownRatio) return;
@@ -558,11 +293,43 @@ export function InventoryTable({ recountFilter = false, stockFilter = 'all', add
       const res = await api.products.breakdown(breakdownSource.id, sQty, breakdownTargetId, ratio, breakdownNote || undefined);
       alert(`Done: removed ${res.sourceDeducted} from source, added ${res.targetAdded} to target.`);
       queryClient.invalidateQueries({ queryKey: ['products'] });
-      setBreakdownSource(null);
+      resetBreakdown();
     } catch (err) {
       alert((err as Error).message);
     } finally {
       setBreakdownBusy(false);
+    }
+  };
+
+  // Label print state
+  const [labelItem, setLabelItem] = useState<Product | null>(null);
+
+  // Receive stock dialog state
+  const [receiveItem, setReceiveItem] = useState<Product | null>(null);
+  const [receiveTierId, setReceiveTierId] = useState('');
+  const [receiveQty, setReceiveQty] = useState('');
+  const [receiveNote, setReceiveNote] = useState('');
+  const [receiving, setReceiving] = useState(false);
+
+  const openReceive = (p: Product) => { setReceiveItem(p); setReceiveTierId(''); setReceiveQty(''); setReceiveNote(''); };
+
+  const handleReceive = async () => {
+    if (!receiveItem || !receiveQty || Number(receiveQty) <= 0) return;
+    setReceiving(true);
+    try {
+      await api.products.adjustStock(
+        receiveItem.id,
+        Number(receiveQty),
+        'RESTOCK',
+        receiveNote || undefined,
+        receiveTierId || undefined,
+      );
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      setReceiveItem(null);
+    } catch {
+      alert('Failed to record delivery — check API connection.');
+    } finally {
+      setReceiving(false);
     }
   };
 
@@ -780,6 +547,20 @@ export function InventoryTable({ recountFilter = false, stockFilter = 'all', add
                         <td className="p-3">
                           <div className="flex gap-1 justify-end">
                             <button
+                              onClick={() => setLabelItem(p)}
+                              title="Print barcode label"
+                              className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                            >
+                              <Barcode className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => openReceive(p)}
+                              title="Receive stock"
+                              className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                            >
+                              <Truck className="h-3.5 w-3.5" />
+                            </button>
+                            <button
                               onClick={() => { setAdjustItem(p); setAdjustDelta(''); setAdjustReason('RESTOCK'); setAdjustNote(''); setAdjustTierId(''); }}
                               title="Adjust stock"
                               className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
@@ -787,7 +568,7 @@ export function InventoryTable({ recountFilter = false, stockFilter = 'all', add
                               <SlidersHorizontal className="h-3.5 w-3.5" />
                             </button>
                             <button
-                              onClick={() => { setBreakdownSource(p); setBreakdownSourceQty('1'); setBreakdownTargetId(''); setBreakdownRatio(''); setBreakdownNote(''); }}
+                              onClick={() => { setBreakdownSource(p); setBreakdownSourceQty('1'); setBreakdownTargetId(''); setBreakdownTargetName(''); setBreakdownRatio(''); setBreakdownNote(''); setBreakdownTargetMode('existing'); setBreakdownNewName(''); setBreakdownNewUnit(p.unit || ''); setBreakdownNewCategory(p.category || ''); setBreakdownNewCost(''); setBreakdownNewSelling(''); }}
                               title="Break down into another item"
                               className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                             >
@@ -919,61 +700,30 @@ export function InventoryTable({ recountFilter = false, stockFilter = 'all', add
 
             {/* ── Packaging tab ──────────────────────────────────────────── */}
             <TabsContent value="packaging" className="overflow-y-auto pt-4 px-6 pb-4">
-              <div className="space-y-3">
-                <div className="flex items-start justify-between">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs font-semibold">Packaging Tiers</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Define how this item is packaged. Stock is always tracked in base units (level&nbsp;0).
-                    </p>
+                    <p className="text-sm font-bold">Packaging Tiers</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">Stock is always tracked in base units (the first tier).</p>
                   </div>
+                  <button
+                    onClick={() => setTierImportOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold hover:bg-muted transition-colors"
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    Import from Excel
+                  </button>
                 </div>
 
-                {editTiers.length === 0 && (
-                  <div className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
-                    No tiers defined. Add a <strong>Piece</strong> tier (level 0, qty 1) as the base unit, then add Outer, Carton, Bale above it.
-                  </div>
+                {editItem && (
+                  <PackagingTierEditor
+                    itemId={editItem.id}
+                    itemUnit={editItem.unit || 'Piece'}
+                    baseSellingPrice={editItem.nomadBitePrice > 0 ? editItem.nomadBitePrice : editItem.sellingPrice}
+                    tiers={editTiers}
+                    onRefresh={() => queryClient.invalidateQueries({ queryKey: ['products'] })}
+                  />
                 )}
-
-                <div className="border rounded-lg overflow-hidden">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr style={{ background: 'var(--muted)' }} className="border-b">
-                        <th className="p-2 text-left font-semibold text-muted-foreground">Name</th>
-                        <th className="p-2 text-center font-semibold text-muted-foreground">Level</th>
-                        <th className="p-2 text-center font-semibold text-muted-foreground">Qty / Base</th>
-                        <th className="p-2 text-right font-semibold text-muted-foreground">Cost/Unit</th>
-                        <th className="p-2 text-right font-semibold text-muted-foreground">Sell Price</th>
-                        <th className="p-2 text-left font-semibold text-muted-foreground">Barcode</th>
-                        <th className="p-2 text-center font-semibold text-muted-foreground">Base</th>
-                        <th className="p-2" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {editTiers.map((tier) => (
-                        <TierRow
-                          key={tier.id}
-                          tier={tier}
-                          itemId={editItem!.id}
-                          onUpdated={() => queryClient.invalidateQueries({ queryKey: ['products'] })}
-                        />
-                      ))}
-                      {editItem && (
-                        <AddTierRow
-                          itemId={editItem.id}
-                          existingLevels={editTiers.map((t) => t.level)}
-                          onAdded={() => queryClient.invalidateQueries({ queryKey: ['products'] })}
-                        />
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
-                  <p className="font-semibold text-foreground">How ratios work</p>
-                  <p>Example: 1 Carton = 24 Pieces. Set Piece (level 0, qty 1) as base, Carton (level 2, qty 24).</p>
-                  <p>When receiving 2 cartons → stock increases by 48 pieces. When 1 piece is sold → 1 is deducted.</p>
-                </div>
               </div>
             </TabsContent>
 
@@ -1395,7 +1145,7 @@ export function InventoryTable({ recountFilter = false, stockFilter = 'all', add
 
       {/* ── Stock Adjustment dialog ─────────────────────────────────────── */}
       {/* ── Stock Breakdown Dialog ────────────────────────────────────────────── */}
-      <Dialog open={!!breakdownSource} onOpenChange={(o) => { if (!o) setBreakdownSource(null); }}>
+      <Dialog open={!!breakdownSource} onOpenChange={(o) => { if (!o) resetBreakdown(); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="font-black">Break Down Stock</DialogTitle>
@@ -1435,22 +1185,96 @@ export function InventoryTable({ recountFilter = false, stockFilter = 'all', add
               </p>
             )}
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Target item</Label>
-              <select
-                value={breakdownTargetId}
-                onChange={(e) => setBreakdownTargetId(e.target.value)}
-                className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
-              >
-                <option value="">— select target —</option>
-                {products
-                  .filter((p) => p.id !== breakdownSource?.id)
-                  .sort((a, b) => a.name.localeCompare(b.name))
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} (stock: {p.currentStock})
-                    </option>
-                  ))}
-              </select>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold">Target item</Label>
+                <button
+                  onClick={() => setBreakdownTargetMode((m) => m === 'existing' ? 'new' : 'existing')}
+                  className="text-[11px] font-semibold flex items-center gap-1"
+                  style={{ color: 'var(--primary)' }}
+                >
+                  {breakdownTargetMode === 'existing' ? <><Plus className="h-3 w-3" />Create new</> : <><X className="h-3 w-3" />Select existing</>}
+                </button>
+              </div>
+
+              {breakdownTargetMode === 'existing' ? (
+                breakdownTargetId ? (
+                  <div className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
+                    <span className="text-sm font-semibold">{breakdownTargetName}</span>
+                    <button
+                      onClick={() => { setBreakdownTargetId(''); setBreakdownTargetName(''); }}
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Change
+                    </button>
+                  </div>
+                ) : (
+                  <select
+                    value={breakdownTargetId}
+                    onChange={(e) => {
+                      const p = products.find((x) => x.id === e.target.value);
+                      setBreakdownTargetId(e.target.value);
+                      setBreakdownTargetName(p?.name ?? '');
+                    }}
+                    className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    <option value="">— select target —</option>
+                    {products
+                      .filter((p) => p.id !== breakdownSource?.id)
+                      .sort((a, b) => a.name.localeCompare(b.name))
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name} (stock: {p.currentStock})
+                        </option>
+                      ))}
+                  </select>
+                )
+              ) : (
+                <div className="rounded-xl border bg-muted/30 p-3 space-y-2.5">
+                  <Input
+                    placeholder="Product name *"
+                    value={breakdownNewName}
+                    onChange={(e) => setBreakdownNewName(e.target.value)}
+                    autoFocus
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      placeholder={`Unit (e.g. ${breakdownSource?.unit || 'PCS'})`}
+                      value={breakdownNewUnit}
+                      onChange={(e) => setBreakdownNewUnit(e.target.value)}
+                    />
+                    <Input
+                      placeholder="Category"
+                      value={breakdownNewCategory}
+                      onChange={(e) => setBreakdownNewCategory(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      type="number"
+                      min="0"
+                      placeholder="Cost price"
+                      value={breakdownNewCost}
+                      onChange={(e) => setBreakdownNewCost(e.target.value)}
+                    />
+                    <Input
+                      type="number"
+                      min="0"
+                      placeholder="Selling price"
+                      value={breakdownNewSelling}
+                      onChange={(e) => setBreakdownNewSelling(e.target.value)}
+                    />
+                  </div>
+                  <button
+                    onClick={handleCreateBreakdownTarget}
+                    disabled={!breakdownNewName.trim() || breakdownCreating}
+                    className="w-full py-2 rounded-lg font-bold text-xs disabled:opacity-50 flex items-center justify-center gap-1.5"
+                    style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
+                  >
+                    {breakdownCreating && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    Create & Select
+                  </button>
+                </div>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs font-semibold">Note (optional)</Label>
@@ -1461,7 +1285,7 @@ export function InventoryTable({ recountFilter = false, stockFilter = 'all', add
               />
             </div>
             <div className="flex gap-3">
-              <button onClick={() => setBreakdownSource(null)} className="flex-1 py-2.5 rounded-lg border font-semibold text-sm hover:bg-muted transition-colors">
+              <button onClick={resetBreakdown} className="flex-1 py-2.5 rounded-lg border font-semibold text-sm hover:bg-muted transition-colors">
                 Cancel
               </button>
               <button
@@ -1478,6 +1302,126 @@ export function InventoryTable({ recountFilter = false, stockFilter = 'all', add
         </DialogContent>
       </Dialog>
 
+      {/* ── Receive Stock dialog ─────────────────────────────────── */}
+      <Dialog open={!!receiveItem} onOpenChange={() => setReceiveItem(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="font-black">Receive Stock</DialogTitle>
+            {receiveItem && (
+              <p className="text-sm text-muted-foreground mt-1">
+                {receiveItem.name} · <strong>{Number(receiveItem.currentStock).toLocaleString()}</strong> {receiveItem.unit || 'pcs'} in stock
+              </p>
+            )}
+          </DialogHeader>
+
+          {receiveItem && (() => {
+            const tiers = (receiveItem.packagingTiers ?? []).filter((t) => !t.isBaseUnit && t.level > 0);
+            const activeTier = tiers.find((t) => t.id === receiveTierId) ?? null;
+            const baseUnitName = receiveItem.unit || 'pcs';
+            const rawBaseQty = receiveQty && Number(receiveQty) > 0
+              ? (activeTier ? Number(receiveQty) * Number(activeTier.quantityInBase) : Number(receiveQty))
+              : 0;
+            const recvPrecision = activeTier?.roundingPrecision ?? 0.001;
+            const baseQty = recvPrecision > 0 ? Math.round(rawBaseQty / recvPrecision) * recvPrecision : rawBaseQty;
+
+            return (
+              <div className="space-y-4 pt-1">
+                {/* Purchase UoM selector */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Received in</Label>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setReceiveTierId('')}
+                      className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-colors ${
+                        receiveTierId === ''
+                          ? 'border-primary bg-primary/10 text-primary'
+                          : 'border-border text-muted-foreground hover:border-primary/40'
+                      }`}
+                    >
+                      {baseUnitName}
+                      <span className="ml-1 opacity-60 font-normal">base</span>
+                    </button>
+                    {tiers.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => setReceiveTierId(t.id)}
+                        className={`px-3 py-1.5 rounded-lg border text-xs font-bold transition-colors ${
+                          receiveTierId === t.id
+                            ? 'border-primary bg-primary/10 text-primary'
+                            : 'border-border text-muted-foreground hover:border-primary/40'
+                        }`}
+                      >
+                        {t.name}
+                        <span className="ml-1 opacity-60 font-normal">× {Number(t.quantityInBase)}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Quantity */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">
+                    Quantity received{' '}
+                    <span className="font-normal text-muted-foreground">
+                      ({activeTier ? activeTier.name : baseUnitName})
+                    </span>
+                  </Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    step="1"
+                    placeholder="e.g. 5"
+                    value={receiveQty}
+                    onChange={(e) => setReceiveQty(e.target.value)}
+                    autoFocus
+                  />
+                  {baseQty > 0 && activeTier && (
+                    <div
+                      className="rounded-lg px-3 py-2 text-xs font-semibold"
+                      style={{ background: 'oklch(0.477 0.216 27.3 / 0.07)', color: 'var(--primary)', border: '1px solid oklch(0.477 0.216 27.3 / 0.2)' }}
+                    >
+                      {Number(receiveQty)} {activeTier.name}(s) × {Number(activeTier.quantityInBase)} = <strong>{baseQty.toLocaleString()} {baseUnitName}</strong> added to stock
+                    </div>
+                  )}
+                </div>
+
+                {/* Note */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">
+                    Delivery note{' '}
+                    <span className="font-normal text-muted-foreground">(optional)</span>
+                  </Label>
+                  <Input
+                    placeholder="e.g. LPO #001 · Distributor Ltd"
+                    value={receiveNote}
+                    onChange={(e) => setReceiveNote(e.target.value)}
+                  />
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setReceiveItem(null)}
+                    className="flex-1 py-2.5 rounded-lg border font-semibold text-sm hover:bg-muted transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleReceive}
+                    disabled={receiving || !receiveQty || Number(receiveQty) <= 0}
+                    className="flex-1 py-2.5 rounded-lg font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-1.5"
+                    style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
+                  >
+                    {receiving && <Loader2 className="h-4 w-4 animate-spin" />}
+                    Add to Stock
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Adjust Stock dialog ───────────────────────────────────── */}
       <Dialog open={!!adjustItem} onOpenChange={() => setAdjustItem(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -1566,6 +1510,13 @@ export function InventoryTable({ recountFilter = false, stockFilter = 'all', add
           </div>
         </DialogContent>
       </Dialog>
+
+      <LabelPrintModal product={labelItem} onClose={() => setLabelItem(null)} />
+      <TierImportDialog
+        open={tierImportOpen}
+        onClose={() => setTierImportOpen(false)}
+        onDone={() => { queryClient.invalidateQueries({ queryKey: ['products'] }); setTierImportOpen(false); }}
+      />
     </>
   );
 }
