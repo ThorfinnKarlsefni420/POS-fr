@@ -9,7 +9,7 @@ function uid(): string {
 }
 
 async function main() {
-  const filePath = join(process.cwd(), '../../lungalunga.txt');
+  const filePath = join('/home/user/POS-fr/lungalunga.txt');
   console.log(`Parsing ${filePath}...`);
   const rows = parseLungaLunga(filePath);
   console.log(`Parsed ${rows.length} rows.`);

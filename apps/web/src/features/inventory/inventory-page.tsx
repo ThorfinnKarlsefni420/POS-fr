@@ -190,7 +190,13 @@ export function InventoryPage() {
     () =>
       products
         .filter((p) => p.sellingPrice > 0)
-        .map((p) => ({ ...p, marginPct: ((p.sellingPrice - p.costPrice) / p.sellingPrice) * 100 }))
+        .map((p) => {
+          const marginPct = p.sellingPrice > 0 ? ((p.sellingPrice - p.costPrice) / p.sellingPrice) * 100 : 0;
+          if (marginPct < -500) {
+            console.warn(`[DEBUG MARGIN] Item: ${p.name}, ID: ${p.id}, Selling: ${p.sellingPrice}, Cost: ${p.costPrice}, Margin: ${marginPct}%`);
+          }
+          return { ...p, marginPct };
+        })
         .filter((p) => p.marginPct < 5 || p.marginPct > 60)
         .sort((a, b) => a.marginPct - b.marginPct),
     [products],

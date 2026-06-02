@@ -17,56 +17,31 @@ export function parseLungaLunga(filePath: string): LungaRow[] {
   const lines = content.split('\n');
   const rows: LungaRow[] = [];
 
-  let startLine = 0;
-  for (let i = 0; i < lines.length; i++) {
-    if (lines[i].includes('ITEM_ID')) {
-      startLine = i + 1;
-      break;
-    }
-  }
-
-  for (let i = startLine; i < lines.length; i++) {
-    const line = lines[i];
+  for (const line of lines) {
     if (!line || !line.trim() || line.startsWith('===')) continue;
-
-    // Offsets detected from debug script:
-    // ITEM_ID: 0
-    // BAR_CODE: 8
-    // DESCRIPTION: (starts after barcode)
-    // UOM: 69
-    // UOM_RATIO: 73
-    // COST: 103
-    // PRICE: 114
-    // VAT_PERCENT: 120
-    // OPENING_BAL: 132
-
-    if (line.length < 130) continue;
-
-    const itemId = line.substring(0, 8).trim();
-    if (!itemId || isNaN(parseInt(itemId))) continue;
-
-    const barcodeAndDesc = line.substring(8, 69).trim();
-    // Usually barcode is the first few digits, but let's just keep it simple
-    const barcode = barcodeAndDesc.substring(0, 25).trim();
-    const description = barcodeAndDesc.substring(25).trim();
     
-    const uom = line.substring(69, 73).trim();
-    const ratio = parseInt(line.substring(73, 103).trim()) || 1;
-    const cost = parseFloat(line.substring(103, 114).trim()) || 0;
-    const price = parseFloat(line.substring(114, 120).trim()) || 0;
-    const vatPercent = parseInt(line.substring(120, 132).trim()) || 0;
-    const openingBal = parseInt(line.substring(132).trim()) || 0;
+    // The structure:
+    // [ID] [BARCODE] [???] [DESC...] [UOM] [RATIO] [COST] [PRICE] [VAT] [BAL]
+    // Let's use a regex to capture it.
+    // Based on L532: "1455  1556455     1455.0  CERELAC 400G 7MONTH PCS  1  511.666667  600  0  0"
+    
+    // Regex breakdown:
+    // ^\s*(\d+)\s+(\d+)\s+[\d.]+\s+(.+?)\s+([A-Z]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+(\d+)\s+(\d+)$
+    const match = line.match(/^\s*(\d+)\s+(\d+)\s+[\d.]+\s+(.+?)\s+([A-Z]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+(\d+)\s+(\d+)$/);
+    if (!match) continue;
+
+    const [, itemId, barcode, description, uom, ratioStr, costStr, priceStr, vatStr, balStr] = match;
 
     rows.push({
       itemId,
       barcode,
-      description,
-      uom,
-      ratio,
-      cost,
-      price,
-      vatPercent,
-      openingBal
+      description: description.trim(),
+      uom: uom.trim(),
+      ratio: parseFloat(ratioStr),
+      cost: parseFloat(costStr),
+      price: parseFloat(priceStr),
+      vatPercent: parseInt(vatStr),
+      openingBal: parseInt(balStr)
     });
   }
 
