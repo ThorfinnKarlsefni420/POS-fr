@@ -4,3 +4,7 @@ dist
 .env.local
 .env.production
 *.env
+
+# Ignore all markdown files except README.md
+*.md
+!README.md
