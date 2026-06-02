@@ -1,10 +1,10 @@
 import { prisma } from '../lib/prisma.ts';
 
 async function main() {
-  const stores = await (prisma as any).store.findMany({
-    select: { id: true, name: true, slug: true }
+  const users = await (prisma as any).user.findMany({
+    select: { id: true, name: true, role: true }
   });
-  console.log(JSON.stringify(stores, null, 2));
+  console.log('Users:', JSON.stringify(users, null, 2));
 }
 
 main()

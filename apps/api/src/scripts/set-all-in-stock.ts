@@ -1,10 +1,14 @@
 import { prisma } from '../lib/prisma.ts';
 
 async function main() {
-  const stores = await (prisma as any).store.findMany({
-    select: { id: true, name: true, slug: true }
+  // Update all items to have a default stock of 50
+  const result = await (prisma as any).item.updateMany({
+    data: {
+      currentStock: 50
+    }
   });
-  console.log(JSON.stringify(stores, null, 2));
+  
+  console.log(`Updated ${result.count} items to be in stock.`);
 }
 
 main()
