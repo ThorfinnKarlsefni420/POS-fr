@@ -1,6 +1,8 @@
+import { ConsignmentTab } from '@/features/consignment/consignment-tab';
 import { ServiceFeeSettings } from './components/service-fee-settings';
 import { StaffManagement } from './components/staff-management';
 import { PromosPanel } from './components/promos-panel';
+import { Handshake } from 'lucide-react';
 
 export function AdminPage() {
   return (
@@ -12,6 +14,13 @@ export function AdminPage() {
       <StaffManagement />
       <ServiceFeeSettings />
       <PromosPanel />
+      <div className="space-y-4">
+        <div className="flex items-center gap-2">
+            <Handshake className="h-5 w-5 text-emerald-600" />
+            <h2 className="text-xl font-bold">Consignment</h2>
+        </div>
+        <ConsignmentTab />
+      </div>
     </div>
   );
 }

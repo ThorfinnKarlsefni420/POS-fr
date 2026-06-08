@@ -20,6 +20,8 @@ import { customersRouter } from './routes/customers';
 import { purchaseOrdersRouter } from './routes/purchase-orders';
 import { promosRouter } from './routes/promos';
 import { voiceRouter } from './routes/voice';
+import { suppliersRouter } from './routes/suppliers';
+import { consignmentRouter } from './routes/consignment';
 
 const app = new Hono();
 
@@ -55,6 +57,8 @@ app.route('/api/customers', customersRouter);
 app.route('/api/purchase-orders', purchaseOrdersRouter);
 app.route('/api/promos', promosRouter);
 app.route('/api/voice', voiceRouter);
+app.route('/api/suppliers', suppliersRouter);
+app.route('/api/consignment', consignmentRouter);
 
 app.get('/api/health', (c) => c.json({ status: 'ok', db: 'postgres', port: 3001 }));
 

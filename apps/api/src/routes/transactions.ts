@@ -42,9 +42,11 @@ transactionsRouter.post('/', async (c) => {
       id: true,
       name: true,
       category: true,
+      costPrice: true,
       currentStock: true,
       vatClassId: true,
       vatClass: { select: { id: true, code: true, rate: true, etimsCode: true } },
+      supplier: { select: { id: true, isConsignment: true, defaultType: true, defaultRate: true } },
     },
   });
   const stockMap = new Map(itemRecords.map((s) => [s.id, s]));
@@ -136,6 +138,35 @@ transactionsRouter.post('/', async (c) => {
     },
     include: { lineItems: true },
   });
+
+  // Consignment (Pay-on-Sell)
+  const consignmentSalesData = transaction.lineItems.flatMap((li) => {
+    const itemRecord = stockMap.get(li.itemId);
+    if (!itemRecord?.supplier?.isConsignment) return [];
+
+    const supplier = itemRecord.supplier;
+    let payoutAmount = 0;
+    
+    if (supplier.defaultType === 'FIXED_COST') {
+      payoutAmount = Number(itemRecord.costPrice) * Number(li.quantity);
+    } else if (supplier.defaultType === 'PERCENTAGE_COMMISSION') {
+      const rate = Number(supplier.defaultRate);
+      payoutAmount = Number(li.soldPrice) * Number(li.quantity) * (1 - rate);
+    }
+
+    return {
+      lineItemId: li.id,
+      supplierId: supplier.id,
+      payoutAmount: payoutAmount,
+      status: 'PENDING' as const,
+    };
+  });
+
+  if (consignmentSalesData.length > 0) {
+    await prisma.consignmentSale.createMany({
+      data: consignmentSalesData,
+    });
+  }
 
   if (body.paymentType === 'CREDIT' && body.vendorId) {
     const termDays = body.termDays ?? 14;
@@ -328,6 +359,11 @@ transactionsRouter.delete('/:id/void', async (c) => {
     where: { id: txId },
     data: { status: 'VOIDED' },
     include: { lineItems: { include: { item: true } }, user: { select: { id: true, name: true } } },
+  });
+
+  await prisma.consignmentSale.updateMany({
+    where: { lineItemId: { in: voided.lineItems.map((li) => li.id) } },
+    data: { status: 'VOIDED' },
   });
 
   return c.json(voided);

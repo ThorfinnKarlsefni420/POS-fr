@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppShell } from '@/components/layout/app-shell';
 import { PosPage } from '@/features/pos/pos-page';
 import { InventoryPage } from '@/features/inventory/inventory-page';
+import { SupplierPage } from '@/features/supplier/supplier-page';
 import { AdminPage } from '@/features/admin/admin-page';
 import { ReturnsPage } from '@/features/returns/returns-page';
 import { ReportsPage } from '@/features/reports/reports-page';
@@ -34,6 +35,15 @@ function AppRoutes() {
         </Routes>
         <PinGate />
       </>
+    );
+  }
+
+  if (user.role === 'SUPPLIER') {
+    return (
+      <Routes>
+        <Route path="/supplier" element={<SupplierPage />} />
+        <Route path="*" element={<Navigate to="/supplier" replace />} />
+      </Routes>
     );
   }
 

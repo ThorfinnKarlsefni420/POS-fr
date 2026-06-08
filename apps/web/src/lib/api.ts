@@ -341,8 +341,66 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ name, imageUrl }),
       }),
+    pendingConsignment: () => req<any>('/superadmin/consignment/pending'),
+  },
+  suppliers: {
+    list: () => req<ApiSupplier[]>('/suppliers'),
+    create: (data: Partial<ApiSupplier>) =>
+      req<ApiSupplier>('/suppliers', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Partial<ApiSupplier>) =>
+      req<ApiSupplier>(`/suppliers/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    delete: (id: string) => req<{ ok: boolean }>(`/suppliers/${id}`, { method: 'DELETE' }),
+    getMe: () => req<ApiSupplier & { items: ApiItem[]; consignmentSales: any[]; settlements: ApiSettlement[] }>('/suppliers/me'),
+  },
+  consignment: {
+    pending: () => req<PendingConsignment[]>('/consignment/pending'),
+    settle: (supplierId: string, saleIds: string[]) =>
+      req<ApiSettlement>('/consignment/settle', {
+        method: 'POST',
+        body: JSON.stringify({ supplierId, saleIds }),
+      }),
+    paySettlement: (id: string) =>
+      req<ApiSettlement>(`/consignment/settlements/${id}/pay`, { method: 'PATCH' }),
   },
 };
+
+export interface ApiSupplier {
+  id: string;
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  isConsignment: boolean;
+  defaultType: 'FIXED_COST' | 'PERCENTAGE_COMMISSION';
+  defaultRate: number;
+  createdAt: string;
+}
+
+export interface PendingConsignment {
+  supplier: ApiSupplier;
+  supplierId: string;
+  sales: Array<{
+    id: string;
+    lineItemId: string;
+    supplierId: string;
+    payoutAmount: number | string;
+    status: string;
+    createdAt: string;
+    lineItem?: {
+      item?: { name: string };
+    };
+  }>;
+  totalPayout: number;
+}
+
+export interface ApiSettlement {
+  id: string;
+  supplierId: string;
+  totalAmount: number;
+  status: 'UNPAID' | 'PAID';
+  paidAt?: string | null;
+  createdAt: string;
+}
+
 
 export interface ItemHistory {
   adjustments: {

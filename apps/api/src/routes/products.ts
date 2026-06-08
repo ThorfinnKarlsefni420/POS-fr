@@ -354,6 +354,7 @@ productsRouter.post('/', async (c) => {
       imageUrl: body.imageUrl,
       manufacturingDate: body.manufacturingDate ? new Date(body.manufacturingDate) : null,
       expiryDate: body.expiryDate ? new Date(body.expiryDate) : null,
+      supplierId: body.supplierId || null,
     },
   });
   return c.json(item, 201);
@@ -404,6 +405,7 @@ productsRouter.patch('/:id', async (c) => {
       ...(body.leadTimeDays !== undefined && { leadTimeDays: body.leadTimeDays !== '' ? Number(body.leadTimeDays) : null }),
       ...(body.reorderPoint !== undefined && { reorderPoint: body.reorderPoint !== '' ? Number(body.reorderPoint) : null }),
       ...(body.reorderQty !== undefined && { reorderQty: body.reorderQty !== '' ? Number(body.reorderQty) : null }),
+      ...(body.supplierId !== undefined && { supplierId: body.supplierId || null }),
     },
   });
   return c.json(item);

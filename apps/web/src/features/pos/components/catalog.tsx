@@ -46,6 +46,7 @@ function useCols(): number {
 }
 
 function ProductCard({ product, onAdd }: { product: Product; onAdd: (p: Product) => void }) {
+  console.log(`[DEBUG] Product ${product.sku} packagingTiers:`, product.packagingTiers);
   const outOfStock = product.currentStock <= 0;
   const noPrice = product.sellingPrice <= 0 && product.nomadBitePrice <= 0;
   const disabled = outOfStock || noPrice;

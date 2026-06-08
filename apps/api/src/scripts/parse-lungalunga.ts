@@ -26,8 +26,8 @@ export function parseLungaLunga(filePath: string): LungaRow[] {
     // Based on L532: "1455  1556455     1455.0  CERELAC 400G 7MONTH PCS  1  511.666667  600  0  0"
     
     // Regex breakdown:
-    // ^\s*(\d+)\s+(\d+)\s+[\d.]+\s+(.+?)\s+([A-Z]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+(\d+)\s+(\d+)$
-    const match = line.match(/^\s*(\d+)\s+(\d+)\s+[\d.]+\s+(.+?)\s+([A-Z]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+(\d+)\s+(\d+)$/);
+    // ^\s*(\d+)\s+(\d+)\s+[\d.]+\s+(.+?)\s+([A-Z]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+(\d+)\s*(.*)$
+    const match = line.match(/^\s*(\d+)\s+(\d+)\s+[\d.]+\s+(.+?)\s+([A-Z]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+(\d+)\s*(.*)$/);
     if (!match) continue;
 
     const [, itemId, barcode, description, uom, ratioStr, costStr, priceStr, vatStr, balStr] = match;
@@ -41,7 +41,7 @@ export function parseLungaLunga(filePath: string): LungaRow[] {
       cost: parseFloat(costStr),
       price: parseFloat(priceStr),
       vatPercent: parseInt(vatStr),
-      openingBal: parseInt(balStr)
+      openingBal: parseInt(balStr) || 0
     });
   }
 

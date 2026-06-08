@@ -7,7 +7,7 @@ import { useSettingsStore } from '@/features/admin/store/use-settings-store';
 interface UserCard {
   id: string;
   name: string;
-  role: 'SUPERADMIN' | 'ADMIN' | 'CASHIER';
+  role: 'SUPERADMIN' | 'ADMIN' | 'CASHIER' | 'SUPPLIER';
 }
 
 

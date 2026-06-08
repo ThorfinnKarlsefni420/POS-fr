@@ -11,6 +11,36 @@ superadminRouter.use('*', async (c, next) => {
   return next();
 });
 
+// GET /superadmin/consignment/pending — aggregate all pending payouts across all stores
+superadminRouter.get('/consignment/pending', async (c) => {
+  const pendingSales = await prisma.consignmentSale.findMany({
+    where: { status: 'PENDING' },
+    include: {
+      supplier: { include: { store: { select: { name: true } } } },
+      lineItem: { include: { item: { select: { name: true } } } },
+    },
+  });
+
+  const grouped = pendingSales.reduce((acc, sale) => {
+    const storeId = sale.supplier.storeId;
+    if (!acc[storeId]) {
+      acc[storeId] = {
+        storeName: sale.supplier.store.name,
+        totalPayout: 0,
+        salesCount: 0,
+      };
+    }
+    acc[storeId].totalPayout += Number(sale.payoutAmount);
+    acc[storeId].salesCount += 1;
+    return acc;
+  }, {} as Record<string, any>);
+
+  return c.json({
+    stores: Object.values(grouped),
+    totalPendingPayout: pendingSales.reduce((sum, s) => sum + Number(s.payoutAmount), 0),
+  });
+});
+
 // GET /superadmin/dashboard — aggregate stats across all stores
 superadminRouter.get('/dashboard', async (c) => {
   const todayStart = new Date();

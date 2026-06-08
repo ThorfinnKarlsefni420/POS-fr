@@ -21,16 +21,42 @@ usersRouter.post('/', async (c) => {
     role?: 'ADMIN' | 'CASHIER' | 'SUPERADMIN';
     storeId?: string;
   }>();
-  const user = await prisma.user.create({
-    data: {
-      name: body.name,
-      pin: body.pin,
-      role: body.role ?? 'CASHIER',
-      storeId: body.storeId ?? null,
-    },
-    select: { id: true, name: true, role: true, storeId: true },
+
+  // If creating an ADMIN, create a corresponding supplier
+  const isCreatingAdmin = body.role === 'ADMIN' || !body.role; // Default role is CASHIER in schema, assume ADMIN check here
+  
+  // Use storeId from body or default to Hasan's store if creating admin
+  const storeId = body.storeId ?? 'store_hasans';
+
+  const result = await prisma.$transaction(async (tx) => {
+    const user = await tx.user.create({
+      data: {
+        name: body.name,
+        pin: body.pin,
+        role: body.role ?? 'CASHIER',
+        storeId,
+      },
+      select: { id: true, name: true, role: true, storeId: true },
+    });
+
+    if (body.role === 'ADMIN') {
+        await tx.supplier.create({
+            data: {
+                storeId,
+                name: body.name, // Using admin name as supplier name
+                phone: `+254700${Math.floor(Math.random() * 900000)}`, // Random placeholder
+                email: `supplier.${Date.now()}@example.com`, // Random placeholder
+                isConsignment: true, // Default to consignment for vendors
+                defaultType: 'FIXED_COST',
+                defaultRate: 0,
+            }
+        });
+    }
+
+    return user;
   });
-  return c.json(user, 201);
+
+  return c.json(result, 201);
 });
 
 // Verify a specific user's PIN (for login)

@@ -30,6 +30,8 @@ model Store {
   stockLocations       StockLocation[]
   stockTransfers       StockTransfer[]
   warehouseIntegrations WarehouseIntegration[]
+  suppliers            Supplier[]
+  consignmentSettlements ConsignmentSettlement[]
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
 }
@@ -47,6 +49,8 @@ model User {
   transactions   Transaction[]
   vendorPayments VendorPayment[]
   mkopoPayments  MkopoPayment[]
+  supplierId     String?
+  supplier       Supplier?       @relation(fields: [supplierId], references: [id])
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 }
@@ -55,6 +59,7 @@ enum Role {
   SUPERADMIN
   ADMIN
   CASHIER
+  SUPPLIER
 }
 
 // ─── Shift & Cash Management ────────────────────────────────────────────────
@@ -155,6 +160,8 @@ model Item {
   leadTimeDays     Int?
   reorderPoint     Decimal?  @db.Decimal(12, 3)
   reorderQty       Decimal?  @db.Decimal(12, 3)
+  supplierId       String?
+  supplier         Supplier? @relation(fields: [supplierId], references: [id])
 
   // Break-bulk hierarchy
   parentItemId     String?
@@ -323,6 +330,7 @@ model LineItem {
   etimsCode     String      @default("VAT")                    // 'VAT' | 'ZERO' | 'NONTAXABLE'
   vatAmount     Decimal     @default(0)    @db.Decimal(10, 2)  // per-unit VAT extracted
   netAmount     Decimal     @default(0)    @db.Decimal(10, 2)  // per-unit net excl. VAT
+  consignmentSale ConsignmentSale?
   createdAt     DateTime    @default(now())
 }
 
@@ -544,6 +552,76 @@ enum MkopoStatus {
   PARTIAL
   PAID
   OVERDUE
+}
+
+// ─── Consignment (Pay-on-Sell) ────────────────────────────────────────────────
+
+enum ConsignmentType {
+  FIXED_COST
+  PERCENTAGE_COMMISSION
+}
+
+enum SettlementStatus {
+  UNPAID
+  PAID
+}
+
+enum ConsignmentSaleStatus {
+  PENDING
+  SETTLED
+  VOIDED
+}
+
+model Supplier {
+  id               String                @id @default(cuid())
+  storeId          String
+  store            Store                 @relation(fields: [storeId], references: [id])
+  name             String
+  phone            String?
+  email            String?
+  isConsignment    Boolean               @default(false)
+  defaultType      ConsignmentType       @default(FIXED_COST)
+  defaultRate      Decimal               @default(0) @db.Decimal(10, 4)
+  items            Item[]
+  consignmentSales ConsignmentSale[]
+  settlements      ConsignmentSettlement[]
+  users            User[]
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  @@unique([storeId, name])
+}
+
+model ConsignmentSale {
+  id               String                @id @default(cuid())
+  lineItemId       String                @unique
+  lineItem         LineItem              @relation(fields: [lineItemId], references: [id])
+  supplierId       String
+  supplier         Supplier              @relation(fields: [supplierId], references: [id])
+  payoutAmount     Decimal               @db.Decimal(10, 2)
+  supplierAmount   Decimal               @db.Decimal(10, 2) @default(0) // Supplier's portion
+  superadminAmount Decimal               @db.Decimal(10, 2) @default(0) // Superadmin's portion (10%)
+  status           ConsignmentSaleStatus @default(PENDING)
+  settlementId     String?
+  settlement       ConsignmentSettlement? @relation(fields: [settlementId], references: [id])
+  createdAt        DateTime              @default(now())
+}
+
+model ConsignmentSettlement {
+  id               String           @id @default(cuid())
+  storeId          String
+  store            Store            @relation(fields: [storeId], references: [id])
+  supplierId       String
+  supplier         Supplier         @relation(fields: [supplierId], references: [id])
+  totalAmount      Decimal          @db.Decimal(10, 2)
+  supplierAmount   Decimal          @db.Decimal(10, 2) @default(0)
+  superadminAmount Decimal          @db.Decimal(10, 2) @default(0)
+  status           SettlementStatus @default(UNPAID)
+  superadminStatus SettlementStatus @default(UNPAID)
+  sales            ConsignmentSale[]
+  paidAt           DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 }
 
 // ─── Warehouse Integration Plugin ─────────────────────────────────────────────

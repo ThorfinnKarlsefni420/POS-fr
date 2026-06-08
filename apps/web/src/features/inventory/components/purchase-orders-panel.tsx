@@ -283,7 +283,7 @@ export function PurchaseOrdersPanel() {
                 <input className="w-full rounded-xl border px-3 py-2 text-sm" placeholder="PO-2026-001" value={refNo} onChange={(e) => setRefNo(e.target.value)} />
               </div>
               <div>
-                <p className="text-xs font-semibold text-muted-foreground mb-1">Vendor / Supplier</p>
+                <p className="text-xs font-semibold text-muted-foreground mb-1">Wholesale / Supplier</p>
                 <input className="w-full rounded-xl border px-3 py-2 text-sm" placeholder="Supplier name" value={vendorName} onChange={(e) => setVendorName(e.target.value)} />
               </div>
             </div>
