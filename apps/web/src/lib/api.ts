@@ -354,6 +354,7 @@ export const api = {
   },
   consignment: {
     pending: () => req<PendingConsignment[]>('/consignment/pending'),
+    listSettlements: () => req<ApiSettlement[]>('/consignment/settlements'),
     settle: (supplierId: string, saleIds: string[]) =>
       req<ApiSettlement>('/consignment/settle', {
         method: 'POST',
@@ -395,7 +396,11 @@ export interface PendingConsignment {
 export interface ApiSettlement {
   id: string;
   supplierId: string;
+  supplier?: ApiSupplier;
+  store?: { name: string };
   totalAmount: number;
+  supplierAmount: number;
+  superadminAmount: number;
   status: 'UNPAID' | 'PAID';
   paidAt?: string | null;
   createdAt: string;

@@ -18,6 +18,21 @@ const STANDARD_DEFAULT: VatClassData = {
   etimsCode: 'VAT',
 };
 
+// Maps VatClassId to rate
+const ID_TO_RATE: Record<string, number> = {
+  vatcls_standard: 0.16,
+  vatcls_zero: 0.00,
+  vatcls_exempt: 0.00,
+};
+
+/**
+ * Returns the tax rate (0.16, 0.00) for a given VatClass ID.
+ */
+export function getTaxRateFromVatClassId(vatClassId: string | null | undefined): number {
+  if (!vatClassId) return 0.00;
+  return ID_TO_RATE[vatClassId] ?? 0.00;
+}
+
 // Resolve effective VAT class: item override → category default → Standard 16% fallback.
 // Pass pre-loaded data to avoid N+1 queries in the caller.
 export function resolveVatClass(
@@ -35,6 +50,7 @@ export interface LineVatResult {
   lineTotalIncl: number;
   lineVatTotal: number;
 }
+// ... (rest of file unchanged)
 
 export function calcLineVat(
   unitPriceIncl: number,

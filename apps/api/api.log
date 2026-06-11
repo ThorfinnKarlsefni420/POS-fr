@@ -1,0 +1,701 @@
+
+  NomadBite API running on http://localhost:3001
+
+<-- GET /api/health
+--> GET /api/health [32m200[0m 3ms
+  ✓ DB connection ready
+<-- POST /api/stores
+--> POST /api/stores [32m201[0m 4s
+<-- POST /api/users
+--> POST /api/users [32m201[0m 3s
+<-- POST /api/users
+--> POST /api/users [32m201[0m 2s
+<-- POST /api/products
+[API Error] http://localhost:3001/api/products Error: X-User-Id header required
+    at getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:9:11)
+    at <anonymous> (/home/user/POS-fr/apps/api/src/routes/products.ts:335:29)
+    at dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:23)
+    at file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:46
+    at cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async file:///home/user/POS-fr/node_modules/hono/dist/hono-base.js:306:25
+--> POST /api/products [31m500[0m 9ms
+<-- POST /api/shifts
+[API Error] http://localhost:3001/api/shifts Error: X-User-Id header required
+    at getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:9:11)
+    at <anonymous> (/home/user/POS-fr/apps/api/src/routes/shifts.ts:28:21)
+    at dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:23)
+    at file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:46
+    at cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async file:///home/user/POS-fr/node_modules/hono/dist/hono-base.js:306:25
+--> POST /api/shifts [31m500[0m 1ms
+<-- GET /api/settings
+--> GET /api/settings [32m200[0m 4s
+<-- POST /api/transactions
+[API Error] http://localhost:3001/api/transactions PrismaClientValidationError: 
+Invalid `prisma.item.findMany()` invocation in
+/home/user/POS-fr/apps/api/src/routes/transactions.ts:40:41
+
+  37 
+  38 // Load items: stock snapshot + VAT class for server-side VAT resolution
+  39 const itemIds = body.items.map((i) => i.id);
+→ 40 const itemRecords = await prisma.item.findMany({
+       where: {
+         id: {
+           in: [
+             undefined
+             ~~~~~~~~~
+           ]
+         }
+       },
+       select: {
+         id: true,
+         name: true,
+         category: true,
+         costPrice: true,
+         currentStock: true,
+         vatClassId: true,
+         vatClass: {
+           select: {
+             id: true,
+             code: true,
+             rate: true,
+             etimsCode: true
+           }
+         },
+         supplier: {
+           select: {
+             id: true,
+             isConsignment: true,
+             defaultType: true,
+             defaultRate: true
+           }
+         }
+       }
+     })
+
+Invalid value for argument `in[0]`: Can not use `undefined` value within array. Use `null` or filter out `undefined` values.
+    at wn (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:1363)
+    at e.throwValidationError (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:10193)
+    at md (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:9310)
+    at da (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:8015)
+    at ma (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:8895)
+    at da (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:8426)
+    at ma (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:8895)
+    at da (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:8426)
+    at ma (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:8895)
+    at mr (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:6043) {
+  clientVersion: '6.2.1'
+}
+--> POST /api/transactions [31m500[0m 2s
+<-- POST /api/settings
+--> POST /api/settings [32m200[0m 6s
+<-- GET /api/settings
+--> GET /api/settings [32m200[0m 4s
+<-- POST /api/transactions
+[API Error] http://localhost:3001/api/transactions PrismaClientValidationError: 
+Invalid `prisma.item.findMany()` invocation in
+/home/user/POS-fr/apps/api/src/routes/transactions.ts:40:41
+
+  37 
+  38 // Load items: stock snapshot + VAT class for server-side VAT resolution
+  39 const itemIds = body.items.map((i) => i.id);
+→ 40 const itemRecords = await prisma.item.findMany({
+       where: {
+         id: {
+           in: [
+             undefined
+             ~~~~~~~~~
+           ]
+         }
+       },
+       select: {
+         id: true,
+         name: true,
+         category: true,
+         costPrice: true,
+         currentStock: true,
+         vatClassId: true,
+         vatClass: {
+           select: {
+             id: true,
+             code: true,
+             rate: true,
+             etimsCode: true
+           }
+         },
+         supplier: {
+           select: {
+             id: true,
+             isConsignment: true,
+             defaultType: true,
+             defaultRate: true
+           }
+         }
+       }
+     })
+
+Invalid value for argument `in[0]`: Can not use `undefined` value within array. Use `null` or filter out `undefined` values.
+    at wn (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:1363)
+    at e.throwValidationError (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:10193)
+    at md (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:9310)
+    at da (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:8015)
+    at ma (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:8895)
+    at da (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:8426)
+    at ma (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:8895)
+    at da (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:8426)
+    at ma (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:8895)
+    at mr (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:6043) {
+  clientVersion: '6.2.1'
+}
+--> POST /api/transactions [31m500[0m 2s
+<-- GET /api/consignment/pending
+--> GET /api/consignment/pending [32m200[0m 4s
+<-- POST /api/transactions
+[API Error] http://localhost:3001/api/transactions PrismaClientValidationError: 
+Invalid `prisma.item.findMany()` invocation in
+/home/user/POS-fr/apps/api/src/routes/transactions.ts:40:41
+
+  37 
+  38 // Load items: stock snapshot + VAT class for server-side VAT resolution
+  39 const itemIds = body.items.map((i) => i.id);
+→ 40 const itemRecords = await prisma.item.findMany({
+       where: {
+         id: {
+           in: [
+             undefined
+             ~~~~~~~~~
+           ]
+         }
+       },
+       select: {
+         id: true,
+         name: true,
+         category: true,
+         costPrice: true,
+         currentStock: true,
+         vatClassId: true,
+         vatClass: {
+           select: {
+             id: true,
+             code: true,
+             rate: true,
+             etimsCode: true
+           }
+         },
+         supplier: {
+           select: {
+             id: true,
+             isConsignment: true,
+             defaultType: true,
+             defaultRate: true
+           }
+         }
+       }
+     })
+
+Invalid value for argument `in[0]`: Can not use `undefined` value within array. Use `null` or filter out `undefined` values.
+    at wn (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:1363)
+    at e.throwValidationError (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:10193)
+    at md (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:9310)
+    at da (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:8015)
+    at ma (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:8895)
+    at da (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:8426)
+    at ma (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:8895)
+    at da (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:8426)
+    at ma (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:8895)
+    at mr (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:29:6043) {
+  clientVersion: '6.2.1'
+}
+--> POST /api/transactions [31m500[0m 2s
+<-- GET /api/consignment/pending
+--> GET /api/consignment/pending [32m200[0m 4s
+<-- GET /api/consignment/settlements
+--> GET /api/consignment/settlements [32m200[0m 5s
+<-- DELETE /api/stores/cmq9owckx0000v9izc21kzys7
+[API Error] http://localhost:3001/api/stores/cmq9owckx0000v9izc21kzys7 PrismaClientKnownRequestError: 
+Invalid `prisma.store.delete()` invocation in
+/home/user/POS-fr/apps/api/src/routes/stores.ts:149:22
+
+  146 await prisma.storeSetting.deleteMany({ where: { storeId: id } });
+  147 await prisma.vendor.deleteMany({ where: { storeId: id } });
+  148 await prisma.user.deleteMany({ where: { storeId: id } });
+→ 149 await prisma.store.delete(
+Foreign key constraint violated: `Supplier_storeId_fkey (index)`
+    at Vn.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:121:7339)
+    at Vn.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:121:6663)
+    at Vn.request (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:121:6370)
+    at async l (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:130:9617)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/stores.ts:149:3)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17) {
+  code: 'P2003',
+  clientVersion: '6.2.1',
+  meta: { modelName: 'Store', field_name: 'Supplier_storeId_fkey (index)' }
+}
+--> DELETE /api/stores/cmq9owckx0000v9izc21kzys7 [31m500[0m 35s
+<-- POST /api/stores
+--> POST /api/stores [32m201[0m 6s
+<-- POST /api/users
+--> POST /api/users [32m201[0m 3s
+<-- POST /api/users
+--> POST /api/users [32m201[0m 2s
+<-- POST /api/shifts
+[API Error] http://localhost:3001/api/shifts Error: X-User-Id header required
+    at getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:9:11)
+    at <anonymous> (/home/user/POS-fr/apps/api/src/routes/shifts.ts:28:21)
+    at dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:23)
+    at file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:46
+    at cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async file:///home/user/POS-fr/node_modules/hono/dist/hono-base.js:306:25
+--> POST /api/shifts [31m500[0m 1ms
+<-- POST /api/suppliers
+[API Error] http://localhost:3001/api/suppliers Error: X-User-Id header required
+    at getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:9:11)
+    at <anonymous> (/home/user/POS-fr/apps/api/src/routes/suppliers.ts:22:29)
+    at dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:23)
+    at file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:46
+    at cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async file:///home/user/POS-fr/node_modules/hono/dist/hono-base.js:306:25
+--> POST /api/suppliers [31m500[0m 3ms
+<-- POST /api/products
+[API Error] http://localhost:3001/api/products Error: X-User-Id header required
+    at getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:9:11)
+    at <anonymous> (/home/user/POS-fr/apps/api/src/routes/products.ts:335:29)
+    at dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:23)
+    at file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:46
+    at cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async file:///home/user/POS-fr/node_modules/hono/dist/hono-base.js:306:25
+--> POST /api/products [31m500[0m 1ms
+<-- POST /api/transactions
+[API Error] http://localhost:3001/api/transactions Error: X-User-Id header required
+    at getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:9:11)
+    at <anonymous> (/home/user/POS-fr/apps/api/src/routes/transactions.ts:13:29)
+    at dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:23)
+    at file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:46
+    at cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async file:///home/user/POS-fr/node_modules/hono/dist/hono-base.js:306:25
+--> POST /api/transactions [31m500[0m 1ms
+<-- GET /api/consignment/pending
+[API Error] http://localhost:3001/api/consignment/pending Error: X-User-Id header required
+    at getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:9:11)
+    at <anonymous> (/home/user/POS-fr/apps/api/src/routes/consignment.ts:30:35)
+    at dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:23)
+    at file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:46
+    at cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async file:///home/user/POS-fr/node_modules/hono/dist/hono-base.js:306:25
+--> GET /api/consignment/pending [31m500[0m 3ms
+<-- POST /api/settings
+[API Error] http://localhost:3001/api/settings Error: X-User-Id header required
+    at getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:9:11)
+    at <anonymous> (/home/user/POS-fr/apps/api/src/routes/settings.ts:24:29)
+    at dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:23)
+    at file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:46
+    at cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async file:///home/user/POS-fr/node_modules/hono/dist/hono-base.js:306:25
+--> POST /api/settings [31m500[0m 2ms
+<-- POST /api/suppliers
+[API Error] http://localhost:3001/api/suppliers Error: X-User-Id header required
+    at getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:9:11)
+    at <anonymous> (/home/user/POS-fr/apps/api/src/routes/suppliers.ts:22:29)
+    at dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:23)
+    at file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:46
+    at cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async file:///home/user/POS-fr/node_modules/hono/dist/hono-base.js:306:25
+--> POST /api/suppliers [31m500[0m 1ms
+<-- POST /api/products
+[API Error] http://localhost:3001/api/products Error: X-User-Id header required
+    at getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:9:11)
+    at <anonymous> (/home/user/POS-fr/apps/api/src/routes/products.ts:335:29)
+    at dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:23)
+    at file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:46
+    at cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async file:///home/user/POS-fr/node_modules/hono/dist/hono-base.js:306:25
+--> POST /api/products [31m500[0m 1ms
+<-- POST /api/transactions
+[API Error] http://localhost:3001/api/transactions Error: X-User-Id header required
+    at getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:9:11)
+    at <anonymous> (/home/user/POS-fr/apps/api/src/routes/transactions.ts:13:29)
+    at dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:23)
+    at file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:46
+    at cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async file:///home/user/POS-fr/node_modules/hono/dist/hono-base.js:306:25
+--> POST /api/transactions [31m500[0m 1ms
+<-- GET /api/consignment/pending
+[API Error] http://localhost:3001/api/consignment/pending Error: X-User-Id header required
+    at getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:9:11)
+    at <anonymous> (/home/user/POS-fr/apps/api/src/routes/consignment.ts:30:35)
+    at dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:23)
+    at file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:46
+    at cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async file:///home/user/POS-fr/node_modules/hono/dist/hono-base.js:306:25
+--> GET /api/consignment/pending [31m500[0m 1ms
+<-- POST /api/suppliers
+[API Error] http://localhost:3001/api/suppliers Error: X-User-Id header required
+    at getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:9:11)
+    at <anonymous> (/home/user/POS-fr/apps/api/src/routes/suppliers.ts:22:29)
+    at dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:23)
+    at file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:46
+    at cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async file:///home/user/POS-fr/node_modules/hono/dist/hono-base.js:306:25
+--> POST /api/suppliers [31m500[0m 1ms
+<-- POST /api/products
+[API Error] http://localhost:3001/api/products Error: X-User-Id header required
+    at getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:9:11)
+    at <anonymous> (/home/user/POS-fr/apps/api/src/routes/products.ts:335:29)
+    at dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:23)
+    at file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:46
+    at cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async file:///home/user/POS-fr/node_modules/hono/dist/hono-base.js:306:25
+--> POST /api/products [31m500[0m 1ms
+<-- POST /api/transactions
+[API Error] http://localhost:3001/api/transactions Error: X-User-Id header required
+    at getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:9:11)
+    at <anonymous> (/home/user/POS-fr/apps/api/src/routes/transactions.ts:13:29)
+    at dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:23)
+    at file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:46
+    at cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async file:///home/user/POS-fr/node_modules/hono/dist/hono-base.js:306:25
+--> POST /api/transactions [31m500[0m 1ms
+<-- POST /api/transactions
+[API Error] http://localhost:3001/api/transactions Error: X-User-Id header required
+    at getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:9:11)
+    at <anonymous> (/home/user/POS-fr/apps/api/src/routes/transactions.ts:13:29)
+    at dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:23)
+    at file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:46
+    at cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async file:///home/user/POS-fr/node_modules/hono/dist/hono-base.js:306:25
+--> POST /api/transactions [31m500[0m 1ms
+<-- GET /api/consignment/pending
+[API Error] http://localhost:3001/api/consignment/pending Error: X-User-Id header required
+    at getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:9:11)
+    at <anonymous> (/home/user/POS-fr/apps/api/src/routes/consignment.ts:30:35)
+    at dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:23)
+    at file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:46
+    at cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async file:///home/user/POS-fr/node_modules/hono/dist/hono-base.js:306:25
+--> GET /api/consignment/pending [31m500[0m 1ms
+<-- POST /api/consignment/settle
+[API Error] http://localhost:3001/api/consignment/settle Error: X-Store-Id required for SUPERADMIN
+    at getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:25:13)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/consignment.ts:67:20)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async file:///home/user/POS-fr/node_modules/hono/dist/hono-base.js:306:25
+    at async responseViaResponseObject (file:///home/user/POS-fr/node_modules/@hono/node-server/dist/index.mjs:487:13)
+    at async Server.<anonymous> (file:///home/user/POS-fr/node_modules/@hono/node-server/dist/index.mjs:630:14)
+--> POST /api/consignment/settle [31m500[0m 3s
+<-- POST /api/consignment/settle
+--> POST /api/consignment/settle [33m403[0m 2s
+<-- DELETE /api/stores/cmq9oymoe000bv9izlagtjoia
+[API Error] http://localhost:3001/api/stores/cmq9oymoe000bv9izlagtjoia PrismaClientKnownRequestError: 
+Invalid `prisma.store.delete()` invocation in
+/home/user/POS-fr/apps/api/src/routes/stores.ts:149:22
+
+  146 await prisma.storeSetting.deleteMany({ where: { storeId: id } });
+  147 await prisma.vendor.deleteMany({ where: { storeId: id } });
+  148 await prisma.user.deleteMany({ where: { storeId: id } });
+→ 149 await prisma.store.delete(
+Foreign key constraint violated: `Supplier_storeId_fkey (index)`
+    at Vn.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:121:7339)
+    at Vn.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:121:6663)
+    at Vn.request (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:121:6370)
+    at async l (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:130:9617)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/stores.ts:149:3)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17) {
+  code: 'P2003',
+  clientVersion: '6.2.1',
+  meta: { modelName: 'Store', field_name: 'Supplier_storeId_fkey (index)' }
+}
+--> DELETE /api/stores/cmq9oymoe000bv9izlagtjoia [31m500[0m 30s
+<-- GET /api/health
+--> GET /api/health [32m200[0m 0ms
+<-- POST /api/stores
+--> POST /api/stores [32m201[0m 4s
+<-- POST /api/stores
+--> POST /api/stores [33m409[0m 3s
+<-- POST /api/stores
+--> POST /api/stores [33m400[0m 1ms
+<-- GET /api/stores
+--> GET /api/stores [32m200[0m 3s
+<-- PATCH /api/stores/cmq9p0hwy000iv9izusfkzitv
+--> PATCH /api/stores/cmq9p0hwy000iv9izusfkzitv [32m200[0m 4s
+<-- PATCH /api/stores/cmq9p0hwy000iv9izusfkzitv
+--> PATCH /api/stores/cmq9p0hwy000iv9izusfkzitv [32m200[0m 3s
+<-- POST /api/users
+--> POST /api/users [32m201[0m 3s
+<-- POST /api/users
+--> POST /api/users [32m201[0m 2s
+<-- POST /api/users
+--> POST /api/users [32m201[0m 2s
+<-- GET /api/users
+--> GET /api/users [32m200[0m 4s
+<-- POST /api/users/verify
+--> POST /api/users/verify [32m200[0m 2s
+<-- POST /api/users/verify
+--> POST /api/users/verify [33m401[0m 2s
+<-- POST /api/users/verify-admin
+--> POST /api/users/verify-admin [32m200[0m 2s
+<-- POST /api/users/verify-admin
+--> POST /api/users/verify-admin [33m401[0m 2s
+<-- PATCH /api/users/cmq9p0w6o000ov9izdequy7n5
+--> PATCH /api/users/cmq9p0w6o000ov9izdequy7n5 [32m200[0m 2s
+<-- GET /api/shifts/current?userId=cmq9p0w6o000ov9izdequy7n5
+--> GET /api/shifts/current?userId=cmq9p0w6o000ov9izdequy7n5 [32m200[0m 4s
+<-- POST /api/shifts
+[API Error] http://localhost:3001/api/shifts Error: X-User-Id header required
+    at getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:9:11)
+    at <anonymous> (/home/user/POS-fr/apps/api/src/routes/shifts.ts:28:21)
+    at dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:23)
+    at file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:46
+    at cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async file:///home/user/POS-fr/node_modules/hono/dist/hono-base.js:306:25
+--> POST /api/shifts [31m500[0m 0ms
+<-- POST /api/shifts
+[API Error] http://localhost:3001/api/shifts Error: X-User-Id header required
+    at getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:9:11)
+    at <anonymous> (/home/user/POS-fr/apps/api/src/routes/shifts.ts:28:21)
+    at dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:23)
+    at file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:46
+    at cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async file:///home/user/POS-fr/node_modules/hono/dist/hono-base.js:306:25
+--> POST /api/shifts [31m500[0m 0ms
+<-- GET /api/shifts/current?userId=cmq9p0w6o000ov9izdequy7n5
+--> GET /api/shifts/current?userId=cmq9p0w6o000ov9izdequy7n5 [32m200[0m 5s
+<-- POST /api/shifts/undefined/cashlog
+[API Error] http://localhost:3001/api/shifts/undefined/cashlog PrismaClientKnownRequestError: 
+Invalid `prisma.cashLog.create()` invocation in
+/home/user/POS-fr/apps/api/src/routes/shifts.ts:42:36
+
+  39 // Add a cash log entry (pay-in / pay-out)
+  40 shiftsRouter.post('/:id/cashlog', async (c) => {
+  41   const body = await c.req.json<{ amount: number; type: 'PAY_IN' | 'PAY_OUT'; reason: string }>();
+→ 42   const log = await prisma.cashLog.create(
+Foreign key constraint violated: `CashLog_shiftId_fkey (index)`
+    at Vn.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:121:7339)
+    at Vn.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:121:6663)
+    at Vn.request (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:121:6370)
+    at async l (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:130:9617)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/shifts.ts:42:15)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17) {
+  code: 'P2003',
+  clientVersion: '6.2.1',
+  meta: { modelName: 'CashLog', field_name: 'CashLog_shiftId_fkey (index)' }
+}
+--> POST /api/shifts/undefined/cashlog [31m500[0m 2s
+<-- POST /api/shifts/undefined/cashlog
+[API Error] http://localhost:3001/api/shifts/undefined/cashlog PrismaClientKnownRequestError: 
+Invalid `prisma.cashLog.create()` invocation in
+/home/user/POS-fr/apps/api/src/routes/shifts.ts:42:36
+
+  39 // Add a cash log entry (pay-in / pay-out)
+  40 shiftsRouter.post('/:id/cashlog', async (c) => {
+  41   const body = await c.req.json<{ amount: number; type: 'PAY_IN' | 'PAY_OUT'; reason: string }>();
+→ 42   const log = await prisma.cashLog.create(
+Foreign key constraint violated: `CashLog_shiftId_fkey (index)`
+    at Vn.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:121:7339)
+    at Vn.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:121:6663)
+    at Vn.request (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:121:6370)
+    at async l (/home/user/POS-fr/node_modules/@prisma/client/runtime/library.js:130:9617)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/shifts.ts:42:15)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17) {
+  code: 'P2003',
+  clientVersion: '6.2.1',
+  meta: { modelName: 'CashLog', field_name: 'CashLog_shiftId_fkey (index)' }
+}
+--> POST /api/shifts/undefined/cashlog [31m500[0m 2s
+<-- POST /api/products
+--> POST /api/products [32m201[0m 5s
+<-- POST /api/products
+--> POST /api/products [32m201[0m 4s
+<-- GET /api/products
+--> GET /api/products [32m200[0m 7s
+<-- PATCH /api/products/cmq9p1lpy000wv9iz4s3xa8ou
+--> PATCH /api/products/cmq9p1lpy000wv9iz4s3xa8ou [32m200[0m 8s
+<-- POST /api/products/cmq9p1lpy000wv9iz4s3xa8ou/adjust
+--> POST /api/products/cmq9p1lpy000wv9iz4s3xa8ou/adjust [32m200[0m 8s
+<-- POST /api/products/cmq9p1lpy000wv9iz4s3xa8ou/adjust
+--> POST /api/products/cmq9p1lpy000wv9iz4s3xa8ou/adjust [32m200[0m 7s
+<-- GET /api/settings
+--> GET /api/settings [32m200[0m 4s
+<-- POST /api/settings
+--> POST /api/settings [32m200[0m 5s
+<-- GET /api/settings
+--> GET /api/settings [32m200[0m 4s
+<-- POST /api/transactions
+[eTIMS] Credentials not configured — skipping invoice for cmq9p2x8g001av9iztqt85sgg | Set ETIMS_TAXPAYER_PIN, ETIMS_DEVICE_SERIAL, ETIMS_API_KEY to go live.
+[eTIMS] Successfully submitted tx cmq9p2x8g001av9iztqt85sgg
+--> POST /api/transactions [32m201[0m 22s
+<-- GET /api/products/cmq9p1lpy000wv9iz4s3xa8ou
+--> GET /api/products/cmq9p1lpy000wv9iz4s3xa8ou [32m200[0m 4s
+<-- GET /api/products/cmq9p1p4d000yv9izxl9o519m
+--> GET /api/products/cmq9p1p4d000yv9izxl9o519m [32m200[0m 2s
+<-- GET /api/transactions
+--> GET /api/transactions [32m200[0m 5s
+<-- POST /api/transactions
+[eTIMS] Credentials not configured — skipping invoice for cmq9p3k8l001fv9izunqdq58c | Set ETIMS_TAXPAYER_PIN, ETIMS_DEVICE_SERIAL, ETIMS_API_KEY to go live.
+[eTIMS] Successfully submitted tx cmq9p3k8l001fv9izunqdq58c
+--> POST /api/transactions [32m201[0m 20s
+<-- POST /api/transactions
+[API Error] http://localhost:3001/api/transactions Error: X-User-Id header required
+    at getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:9:11)
+    at <anonymous> (/home/user/POS-fr/apps/api/src/routes/transactions.ts:13:29)
+    at dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:23)
+    at file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:46
+    at cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async file:///home/user/POS-fr/node_modules/hono/dist/hono-base.js:306:25
+--> POST /api/transactions [31m500[0m 1ms
+<-- GET /api/products/cmq9p1lpy000wv9iz4s3xa8ou
+--> GET /api/products/cmq9p1lpy000wv9iz4s3xa8ou [32m200[0m 4s
+<-- POST /api/transactions/cmq9p2x8g001av9iztqt85sgg/refund
+--> POST /api/transactions/cmq9p2x8g001av9iztqt85sgg/refund [32m200[0m 7s
+<-- GET /api/products/cmq9p1lpy000wv9iz4s3xa8ou
+--> GET /api/products/cmq9p1lpy000wv9iz4s3xa8ou [32m200[0m 2s
+<-- GET /api/transactions
+--> GET /api/transactions [32m200[0m 6s
+<-- DELETE /api/transactions/cmq9p2x8g001av9iztqt85sgg/void
+--> DELETE /api/transactions/cmq9p2x8g001av9iztqt85sgg/void [33m400[0m 2s
+<-- POST /api/transactions
+[eTIMS] Credentials not configured — skipping invoice for cmq9p4gev001jv9izqf9x2xd4 | Set ETIMS_TAXPAYER_PIN, ETIMS_DEVICE_SERIAL, ETIMS_API_KEY to go live.
+[eTIMS] Successfully submitted tx cmq9p4gev001jv9izqf9x2xd4
+--> POST /api/transactions [32m201[0m 18s
+<-- DELETE /api/transactions/cmq9p4gev001jv9izqf9x2xd4/void
+--> DELETE /api/transactions/cmq9p4gev001jv9izqf9x2xd4/void [32m200[0m 10s
+<-- DELETE /api/transactions/nonexistent/void
+--> DELETE /api/transactions/nonexistent/void [33m404[0m 2s
+<-- GET /api/reports/sales?from=2026-06-11&to=2026-06-11
+--> GET /api/reports/sales?from=2026-06-11&to=2026-06-11 [32m200[0m 5s
+<-- GET /api/reports/shifts?from=2026-06-11&to=2026-06-11
+--> GET /api/reports/shifts?from=2026-06-11&to=2026-06-11 [32m200[0m 6s
+<-- GET /api/reports/inventory
+--> GET /api/reports/inventory [32m200[0m 5s
+<-- GET /api/stores/cmq9p0hwy000iv9izusfkzitv/stats
+--> GET /api/stores/cmq9p0hwy000iv9izusfkzitv/stats [32m200[0m 3s
+<-- GET /api/superadmin/dashboard
+[API Error] http://localhost:3001/api/superadmin/dashboard Error: X-Store-Id required for SUPERADMIN
+    at getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:25:13)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/superadmin.ts:9:20)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:76:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async logger2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/logger/index.js:38:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async file:///home/user/POS-fr/node_modules/hono/dist/hono-base.js:306:25
+    at async responseViaResponseObject (file:///home/user/POS-fr/node_modules/@hono/node-server/dist/index.mjs:487:13)
+    at async Server.<anonymous> (file:///home/user/POS-fr/node_modules/@hono/node-server/dist/index.mjs:630:14)
+--> GET /api/superadmin/dashboard [31m500[0m 1s
+<-- POST /api/shifts/undefined/close
+--> POST /api/shifts/undefined/close [33m404[0m 2s
+<-- GET /api/shifts/current?userId=cmq9p0w6o000ov9izdequy7n5
+--> GET /api/shifts/current?userId=cmq9p0w6o000ov9izdequy7n5 [32m200[0m 5s
+<-- DELETE /api/users/cmq9p0w6o000ov9izdequy7n5
+--> DELETE /api/users/cmq9p0w6o000ov9izdequy7n5 [33m409[0m 2s
+<-- POST /api/users
+--> POST /api/users [32m201[0m 2s
+<-- DELETE /api/users/cmq9p5ibe001nv9iz4kjcz2ki
+--> DELETE /api/users/cmq9p5ibe001nv9iz4kjcz2ki [32m200[0m 4s
+<-- GET /api/users
+--> GET /api/users [32m200[0m 4s
+<-- POST /api/products/import
+[IMPORT DEBUG] storeId=cmq9p0hwy000iv9izusfkzitv total=2 replace=false
+[IMPORT DEBUG] First product sample: name="Imported Water" sku="IMP-001" costPrice=20 sellingPrice=undefined nomadBitePrice=35 unit="pcs" tiers=0
+[IMPORT DEBUG] Progress: 0/2 (ok=2 fail=0)
+[IMPORT DEBUG] Done: succeeded=2 failed=0
+--> POST /api/products/import [32m200[0m 4s

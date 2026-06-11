@@ -3,9 +3,11 @@ import { randomBytes } from 'crypto';
 import { prisma } from '../lib/prisma';
 import { getStoreContext } from '../middleware/store-context';
 import { runSync, parseCsv, resolvePath, FieldMapping } from '../lib/sync-engine';
+import { getTaxRateFromVatClassId } from '../lib/vat-engine';
 import {
   fetchD365Products,
-  fetchD365Inventory,
+// ...
+
   parseD365Credentials,
 } from '../lib/dynamics365';
 import {
@@ -322,7 +324,7 @@ integrationsRouter.post('/:id/sync', async (c) => {
               sellingPrice: p.sellingPrice,
               category: p.category || undefined,
               unit: p.unit || undefined,
-              taxRate: p.taxRate,
+              taxRate: p.vatClassId ? getTaxRateFromVatClassId(p.vatClassId) * 100 : Number(p.taxRate ?? 0),
               currentStock: p.stock,
             },
             create: {
@@ -334,7 +336,8 @@ integrationsRouter.post('/:id/sync', async (c) => {
               costPrice: p.costPrice,
               sellingPrice: p.sellingPrice,
               nomadBitePrice: 0,
-              taxRate: p.taxRate,
+              vatClassId: p.vatClassId || null,
+              taxRate: p.vatClassId ? getTaxRateFromVatClassId(p.vatClassId) * 100 : Number(p.taxRate ?? 0),
               currentStock: p.stock,
             },
           })

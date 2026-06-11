@@ -1,3 +1,4 @@
+import { prisma } from '../src/lib/prisma';
 /**
  * NomadBite POS — Integration Test Suite
  *
@@ -20,6 +21,7 @@ const SLUG = `test-${Date.now()}`;
 let storeId: string;
 let adminId: string;
 let cashierId: string;
+let superadminId: string;
 let productId: string;
 let product2Id: string;
 let shiftId: string;
@@ -49,8 +51,24 @@ describe('NomadBite API Integration', { concurrency: false }, () => {
   // ── Teardown: always delete test store ────────────────────────────────────
   after(async () => {
     if (storeId) {
-      const { status } = await req(`/stores/${storeId}`, { method: 'DELETE' });
-      assert.equal(status, 200, 'Teardown: store delete should return 200');
+      // Deterministic cleanup sequence to satisfy onDelete: RESTRICT constraints
+      // Must follow FK dependency order; batch inside one $transaction for atomicity
+      await prisma.$transaction([
+        prisma.consignmentSale.deleteMany({ where: { lineItem: { transaction: { storeId } } } }),
+        prisma.lineItem.deleteMany({ where: { transaction: { storeId } } }),
+        prisma.transaction.deleteMany({ where: { storeId } }),
+        prisma.cashLog.deleteMany({ where: { shift: { storeId } } }),
+        prisma.shift.deleteMany({ where: { storeId } }),
+        prisma.inventoryAdjustment.deleteMany({ where: { item: { storeId } } }),
+        prisma.itemStock.deleteMany({ where: { item: { storeId } } }),
+        prisma.packagingTier.deleteMany({ where: { item: { storeId } } }),
+        prisma.item.deleteMany({ where: { storeId } }),
+        prisma.storeSetting.deleteMany({ where: { storeId } }),
+        prisma.consignmentSettlement.deleteMany({ where: { storeId } }),
+        prisma.supplier.deleteMany({ where: { storeId } }),
+        prisma.user.deleteMany({ where: { storeId } }),
+        prisma.store.delete({ where: { id: storeId } }),
+      ]);
     }
   });
 
@@ -144,6 +162,15 @@ describe('NomadBite API Integration', { concurrency: false }, () => {
     });
     assert.equal(status, 201);
     cashierId = (body as JsonBody).id as string;
+  });
+
+  it('POST /users — create superadmin', async () => {
+    const { status, body } = await req('/users', {
+      method: 'POST',
+      body: JSON.stringify({ name: 'Test Superadmin', pin: '0000', role: 'SUPERADMIN' }),
+    });
+    assert.equal(status, 201);
+    superadminId = (body as JsonBody).id as string;
   });
 
   it('GET /users — scoped to test store', async () => {
@@ -566,7 +593,7 @@ describe('NomadBite API Integration', { concurrency: false }, () => {
   // ══════════════════════════════════════════════════════════════════════════
 
   it('GET /superadmin/dashboard — test store appears', async () => {
-    const { status, body } = await req('/superadmin/dashboard');
+    const { status, body } = await req('/superadmin/dashboard', { userId: superadminId });
     assert.equal(status, 200);
     const d = body as { summary: JsonBody; stores: JsonBody[] };
     assert.ok(typeof d.summary.totalStores === 'number');

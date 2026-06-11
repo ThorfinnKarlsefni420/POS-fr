@@ -4,6 +4,26 @@ import { getStoreContext } from '../middleware/store-context';
 
 export const consignmentRouter = new Hono();
 
+// GET /settlements: List all settlements.
+// Admin sees only their store's settlements. Superadmin sees all.
+consignmentRouter.get('/settlements', async (c) => {
+  const { storeId, role } = await getStoreContext(c);
+  if (!storeId && role !== 'SUPERADMIN') return c.json({ error: 'storeId required' }, 400);
+
+  const settlements = await prisma.consignmentSettlement.findMany({
+    where: {
+      ...(role !== 'SUPERADMIN' ? { storeId } : {}),
+    },
+    include: {
+      supplier: true,
+      store: { select: { name: true } },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  return c.json(settlements);
+});
+
 // GET /pending: Find all ConsignmentSale records with status = PENDING grouped by supplier.
 // Accessible by ADMIN and SUPERADMIN (Read-only for Admin)
 consignmentRouter.get('/pending', async (c) => {
@@ -70,12 +90,16 @@ consignmentRouter.post('/settle', async (c) => {
   }
 
   const totalAmount = sales.reduce((sum, sale) => sum + Number(sale.payoutAmount), 0);
+  const supplierAmount = sales.reduce((sum, sale) => sum + Number(sale.supplierAmount), 0);
+  const superadminAmount = sales.reduce((sum, sale) => sum + Number(sale.superadminAmount), 0);
 
   const settlement = await prisma.consignmentSettlement.create({
     data: {
       storeId: supplier.storeId,
       supplierId: body.supplierId,
       totalAmount,
+      supplierAmount,
+      superadminAmount,
       status: 'UNPAID',
       sales: {
         connect: body.saleIds.map((id) => ({ id })),

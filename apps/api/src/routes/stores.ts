@@ -137,6 +137,8 @@ storesRouter.delete('/:id', async (c) => {
 
   await prisma.vendorPayment.deleteMany({ where: { creditSale: { transactionId: { in: txIds } } } });
   await prisma.creditSale.deleteMany({ where: { transactionId: { in: txIds } } });
+  // ConsignmentSale → LineItem → Transaction (must go before lineItem)
+  await prisma.consignmentSale.deleteMany({ where: { lineItem: { transactionId: { in: txIds } } } });
   await prisma.lineItem.deleteMany({ where: { transactionId: { in: txIds } } });
   await prisma.transaction.deleteMany({ where: { storeId: id } });
   await prisma.cashLog.deleteMany({ where: { shiftId: { in: shiftIds } } });
@@ -145,6 +147,9 @@ storesRouter.delete('/:id', async (c) => {
   await prisma.item.deleteMany({ where: { storeId: id } });
   await prisma.storeSetting.deleteMany({ where: { storeId: id } });
   await prisma.vendor.deleteMany({ where: { storeId: id } });
+  // ConsignmentSettlement → Supplier (must go before supplier)
+  await prisma.consignmentSettlement.deleteMany({ where: { storeId: id } });
+  await prisma.supplier.deleteMany({ where: { storeId: id } });
   await prisma.user.deleteMany({ where: { storeId: id } });
   await prisma.store.delete({ where: { id } });
 

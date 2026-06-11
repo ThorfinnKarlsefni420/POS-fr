@@ -14,10 +14,12 @@
     "test": "npm run test --workspaces --if-present"
   },
   "devDependencies": {
+    "prisma": "6.2.1",
     "typescript": "^5.0.0"
   },
   "dependencies": {
     "@esbuild/linux-x64": "^0.28.0",
+    "@prisma/client": "6.2.1",
     "xlsx": "^0.18.5"
   }
 }

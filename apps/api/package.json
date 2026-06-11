@@ -14,7 +14,7 @@
   "dependencies": {
     "@hono/node-server": "^1.13.7",
     "@prisma/adapter-pg": "^7.8.0",
-    "@prisma/client": "^7.8.0",
+    "@prisma/client": "6.2.1",
     "@sendgrid/mail": "^8.1.6",
     "hono": "^4.7.11",
     "pg": "^8.20.0"
@@ -24,7 +24,7 @@
     "@types/pg": "^8.20.0",
     "dotenv": "^17.4.2",
     "esbuild": "^0.28.0",
-    "prisma": "^7.8.0",
+    "prisma": "6.2.1",
     "tsx": "^4.21.0"
   }
 }

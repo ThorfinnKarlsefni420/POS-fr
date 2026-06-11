@@ -5,6 +5,7 @@ import { submitEtimsInvoice } from '../lib/etims';
 import { resolveVatClass, calcLineVat, calcReceiptTotals, VatClassData } from '../lib/vat-engine';
 import { pushTransactionToD365, parseD365Credentials } from '../lib/dynamics365';
 import { decryptCredentials } from '../lib/credentials-crypto';
+import { getSettings } from '../lib/settings';
 
 export const transactionsRouter = new Hono();
 
@@ -140,32 +141,44 @@ transactionsRouter.post('/', async (c) => {
   });
 
   // Consignment (Pay-on-Sell)
-  const consignmentSalesData = transaction.lineItems.flatMap((li) => {
-    const itemRecord = stockMap.get(li.itemId);
-    if (!itemRecord?.supplier?.isConsignment) return [];
+  // Master switch: consignmentEnabled must be true. Items qualify only when their supplier
+  // has isConsignment=true. Supplier config always takes precedence over store defaults.
+  const settings = await getSettings(storeId);
+  if (settings.consignmentEnabled) {
+    const consignmentSalesData = transaction.lineItems.flatMap((li) => {
+      const itemRecord = stockMap.get(li.itemId);
+      if (!itemRecord?.supplier?.isConsignment) return [];
 
-    const supplier = itemRecord.supplier;
-    let payoutAmount = 0;
-    
-    if (supplier.defaultType === 'FIXED_COST') {
-      payoutAmount = Number(itemRecord.costPrice) * Number(li.quantity);
-    } else if (supplier.defaultType === 'PERCENTAGE_COMMISSION') {
-      const rate = Number(supplier.defaultRate);
-      payoutAmount = Number(li.soldPrice) * Number(li.quantity) * (1 - rate);
-    }
+      const supplier = itemRecord.supplier;
+      const soldTotal = Number(li.soldPrice) * Number(li.quantity);
+      let supplierAmount = 0;
+      let superadminAmount = 0;
 
-    return {
-      lineItemId: li.id,
-      supplierId: supplier.id,
-      payoutAmount: payoutAmount,
-      status: 'PENDING' as const,
-    };
-  });
+      if (supplier.defaultType === 'FIXED_COST') {
+        supplierAmount = Number(itemRecord.costPrice) * Number(li.quantity);
+        superadminAmount = soldTotal - supplierAmount;
+      } else if (supplier.defaultType === 'PERCENTAGE_COMMISSION') {
+        const rate = Number(supplier.defaultRate);
+        supplierAmount = soldTotal * rate;
+        superadminAmount = soldTotal * (1 - rate);
+      }
+      // HYBRID: not yet implemented — no ConsignmentSale created
 
-  if (consignmentSalesData.length > 0) {
-    await prisma.consignmentSale.createMany({
-      data: consignmentSalesData,
+      return {
+        lineItemId: li.id,
+        supplierId: supplier.id,
+        settlementType: supplier.defaultType,
+        settlementRate: Number(supplier.defaultRate),
+        payoutAmount: supplierAmount,
+        supplierAmount,
+        superadminAmount,
+        status: 'PENDING' as const,
+      };
     });
+
+    if (consignmentSalesData.length > 0) {
+      await prisma.consignmentSale.createMany({ data: consignmentSalesData });
+    }
   }
 
   if (body.paymentType === 'CREDIT' && body.vendorId) {
@@ -216,32 +229,36 @@ transactionsRouter.post('/', async (c) => {
   });
   const metaMap = new Map(itemMeta.map((m) => [m.id, m]));
 
-  // Deduct stock — intentionally allows going negative (Phase 1.2 Negative Stock Rule)
-  const updatedItems = await Promise.all(
-    body.items.map((item) =>
-      prisma.item.update({
+  // Deduct stock and break-bulk in an atomic transaction
+  const updatedItems = await prisma.$transaction(async (tx) => {
+    const results = [];
+    
+    // 1. Deduct child items
+    for (const item of body.items) {
+      const updated = await tx.item.update({
         where: { id: item.id },
         data: { currentStock: { decrement: item.quantity } },
         select: { id: true, name: true, currentStock: true },
-      })
-    )
-  );
+      });
+      results.push(updated);
+    }
 
-  // Break-bulk: deduct fractional stock from parent item (Phase 2.1)
-  await Promise.all(
-    body.items.flatMap((item) => {
+    // 2. Break-bulk: deduct fractional stock from parent item
+    for (const item of body.items) {
       const meta = metaMap.get(item.id);
-      if (!meta?.parentItemId || !meta.boxQty) return [];
-      const boxSize = Number(meta.boxQty);
-      if (!boxSize) return [];
-      return [
-        prisma.item.update({
-          where: { id: meta.parentItemId },
-          data: { currentStock: { decrement: item.quantity / boxSize } },
-        }),
-      ];
-    })
-  );
+      if (meta?.parentItemId && meta.boxQty) {
+        const boxSize = Number(meta.boxQty);
+        if (boxSize > 0) {
+          await tx.item.update({
+            where: { id: meta.parentItemId },
+            data: { currentStock: { decrement: item.quantity / boxSize } },
+          });
+        }
+      }
+    }
+    
+    return results;
+  });
 
   // Flag items that landed below zero — backend "Requires Recount" signal
   const negativeStockItems = updatedItems
@@ -252,21 +269,29 @@ transactionsRouter.post('/', async (c) => {
   prisma.warehouseIntegration.findFirst({
     where: { storeId, type: 'DYNAMICS_365' as never, isActive: true },
     select: { credentials: true },
-  }).then((integration) => {
+  }).then(async (integration) => {
     if (!integration) return;
-    const creds = parseD365Credentials(decryptCredentials(integration.credentials));
-    if (!creds) return;
-    const d365Items = body.items.map((item) => {
-      const snap = stockMap.get(item.id);
-      return { sku: snap?.name ?? item.id, qty: item.quantity, unitPrice: item.soldPrice };
-    });
-    return pushTransactionToD365(creds, {
-      id: transaction.id,
-      totalAmount: body.totalAmount,
-      paymentType: body.paymentType,
-      items: d365Items,
-    });
-  }).catch((err) => console.error('[D365] transaction push error:', err));
+    try {
+      const creds = parseD365Credentials(decryptCredentials(integration.credentials));
+      if (!creds) {
+        console.error(`[D365] Failed to decrypt credentials for store ${storeId}`);
+        return;
+      }
+      const d365Items = body.items.map((item) => {
+        const snap = stockMap.get(item.id);
+        return { sku: snap?.name ?? item.id, qty: item.quantity, unitPrice: item.soldPrice };
+      });
+      await pushTransactionToD365(creds, {
+        id: transaction.id,
+        totalAmount: body.totalAmount,
+        paymentType: body.paymentType,
+        items: d365Items,
+      });
+      console.log(`[D365] Successfully pushed transaction ${transaction.id}`);
+    } catch (err) {
+      console.error(`[D365] transaction push error for tx ${transaction.id}:`, err);
+    }
+  }).catch((err) => console.error('[D365] Integration lookup error:', err));
 
   // KRA eTIMS — fire-and-forget, never blocks the POS response
   submitEtimsInvoice({
@@ -286,7 +311,9 @@ transactionsRouter.post('/', async (c) => {
       vatAmount: vatResult.vatAmount,
       taxType: vatResult.etimsCode,
     })),
-  }).catch((err) => console.error('[eTIMS] submission error:', err));
+  })
+    .then(() => console.log(`[eTIMS] Successfully submitted tx ${transaction.id}`))
+    .catch((err) => console.error(`[eTIMS] submission error for tx ${transaction.id}:`, err));
 
   return c.json({ ...transaction, stockDiscrepancies, negativeStockItems }, 201);
 });
@@ -336,6 +363,13 @@ transactionsRouter.post('/:id/refund', async (c) => {
   await prisma.transaction.update({
     where: { id: txId },
     data: { status: 'REFUNDED' },
+  });
+
+  // Void any pending ConsignmentSales for the returned line items
+  const returnedLineItemIds = body.items.map(({ lineItemId }) => lineItemId);
+  await prisma.consignmentSale.updateMany({
+    where: { lineItemId: { in: returnedLineItemIds }, status: 'PENDING' },
+    data: { status: 'VOIDED' },
   });
 
   return c.json({ ok: true });

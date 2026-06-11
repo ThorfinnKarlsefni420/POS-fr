@@ -2,9 +2,10 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { prisma } from '../lib/prisma';
 import { getStoreContext } from '../middleware/store-context';
-import { resolveVatClass, VatClassData } from '../lib/vat-engine';
+import { resolveVatClass, VatClassData, getTaxRateFromVatClassId } from '../lib/vat-engine';
 
 export const productsRouter = new Hono();
+// ...
 
 // Load all CategoryVat rows once and return a category → effective etimsCode map
 async function loadCatVatMap() {
@@ -355,6 +356,8 @@ productsRouter.post('/', async (c) => {
       manufacturingDate: body.manufacturingDate ? new Date(body.manufacturingDate) : null,
       expiryDate: body.expiryDate ? new Date(body.expiryDate) : null,
       supplierId: body.supplierId || null,
+      parentItemId: body.parentItemId || null,
+      boxQty: body.boxQty !== undefined ? String(body.boxQty) : '',
     },
   });
   return c.json(item, 201);
@@ -384,7 +387,7 @@ productsRouter.patch('/:id', async (c) => {
       ...(body.vatClassId !== undefined && {
         vatClassId: body.vatClassId,
         // Keep legacy taxRate in sync so old code reading it stays consistent
-        taxRate: ({ vatcls_standard: 16, vatcls_zero: 0, vatcls_exempt: 0 } as Record<string, number>)[body.vatClassId] ?? 0,
+        taxRate: getTaxRateFromVatClassId(body.vatClassId) * 100,
       }),
       ...(body.vatOverrideReason !== undefined && { vatOverrideReason: body.vatOverrideReason }),
       ...(body.needsVatConfirmation !== undefined && { needsVatConfirmation: Boolean(body.needsVatConfirmation) }),
@@ -493,7 +496,8 @@ productsRouter.post(
       costPrice: Number(p.costPrice ?? 0),
       sellingPrice: Number(p.sellingPrice ?? 0),
       nomadBitePrice: Number(p.nomadBitePrice ?? 0),
-      taxRate: Number(p.taxRate ?? 0),
+      vatClassId: p.vatClassId ? String(p.vatClassId) : null,
+      taxRate: p.vatClassId ? getTaxRateFromVatClassId(String(p.vatClassId)) * 100 : Number(p.taxRate ?? 0),
       isFractional: Boolean(p.isFractional),
       currentStock: Number(p.currentStock ?? 0),
       notes: p.notes ? String(p.notes) : null,

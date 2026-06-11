@@ -1,0 +1,858 @@
+
+  NomadBite API running on http://localhost:3001
+
+  ✓ DB connection ready
+<-- GET /api/health
+--> GET /api/health [32m200[0m 4ms
+<-- POST /api/stores
+--> POST /api/stores [32m201[0m 770ms
+<-- POST /api/stores
+--> POST /api/stores [33m409[0m 400ms
+<-- POST /api/stores
+--> POST /api/stores [33m400[0m 2ms
+<-- GET /api/stores
+--> GET /api/stores [32m200[0m 293ms
+<-- PATCH /api/stores/cmq87dp2w0000o3v99prj7c6l
+--> PATCH /api/stores/cmq87dp2w0000o3v99prj7c6l [32m200[0m 303ms
+<-- PATCH /api/stores/cmq87dp2w0000o3v99prj7c6l
+--> PATCH /api/stores/cmq87dp2w0000o3v99prj7c6l [32m200[0m 1s
+<-- POST /api/users
+[API Error] http://localhost:3001/api/users PrismaClientKnownRequestError: 
+Invalid `tx.supplier.create()` invocation in
+/home/user/POS-fr/apps/api/src/routes/users.ts:44:27
+
+  41 });
+  42 
+  43 if (body.role === 'ADMIN') {
+→ 44     await tx.supplier.create(
+The table `public.Supplier` does not exist in the current database.
+    at zr.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async Array.$allOperations (/home/user/POS-fr/apps/api/src/lib/prisma.ts:26:20)
+    at async a (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/users.ts:44:9)
+    at async Proxy._transactionWithCallback (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:810:18)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/users.ts:32:18)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17) {
+  code: 'P2021',
+  meta: {
+    modelName: 'Supplier',
+    driverAdapterError: DriverAdapterError: TableDoesNotExist
+        at PgTransaction.onError (file:///home/user/POS-fr/node_modules/@prisma/adapter-pg/dist/index.mjs:642:11)
+        at PgTransaction.performIO (file:///home/user/POS-fr/node_modules/@prisma/adapter-pg/dist/index.mjs:637:12)
+        at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+        at async PgTransaction.queryRaw (file:///home/user/POS-fr/node_modules/@prisma/adapter-pg/dist/index.mjs:568:30)
+        at async e.interpretNode (/home/user/POS-fr/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:186:26)
+        at async e.interpretNode (/home/user/POS-fr/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:213:41)
+        at async e.interpretNode (/home/user/POS-fr/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:272:41)
+        at async e.run (/home/user/POS-fr/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:94:23)
+        at async e.execute (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/core/engines/client/LocalExecutor.ts:81:12)
+        at async jt.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/core/engines/client/ClientEngine.ts:504:22) {
+      cause: [Object]
+    }
+  },
+  clientVersion: '7.8.0'
+}
+--> POST /api/users [31m500[0m 3s
+<-- POST /api/users
+--> POST /api/users [32m201[0m 2s
+<-- GET /api/users
+--> GET /api/users [32m200[0m 1s
+<-- POST /api/users/verify
+--> POST /api/users/verify [32m200[0m 652ms
+<-- POST /api/users/verify
+--> POST /api/users/verify [33m401[0m 3s
+<-- POST /api/users/verify-admin
+--> POST /api/users/verify-admin [33m401[0m 410ms
+<-- POST /api/users/verify-admin
+--> POST /api/users/verify-admin [33m401[0m 1s
+<-- PATCH /api/users/cmq87dtc50003o3v99kxq3djl
+--> PATCH /api/users/cmq87dtc50003o3v99kxq3djl [32m200[0m 1s
+<-- GET /api/shifts/current?userId=cmq87dtc50003o3v99kxq3djl
+[API Error] http://localhost:3001/api/shifts/current?userId=cmq87dtc50003o3v99kxq3djl PrismaClientKnownRequestError: 
+Invalid `prisma.user.findUnique()` invocation in
+/home/user/POS-fr/apps/api/src/middleware/store-context.ts:10:34
+
+   7 const userId = c.req.header('X-User-Id');
+   8 if (!userId) return { storeId: null, role: 'CASHIER', userId: null, supplierId: null };
+   9 
+→ 10 const user = await prisma.user.findUnique(
+The column `User.supplierId` does not exist in the current database.
+    at zr.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async Array.$allOperations (/home/user/POS-fr/apps/api/src/lib/prisma.ts:26:20)
+    at async a (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    at async getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:10:16)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/shifts.ts:9:23)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:79:5) {
+  code: 'P2022',
+  meta: {
+    modelName: 'User',
+    driverAdapterError: DriverAdapterError: ColumnNotFound
+        at PrismaPgAdapter.onError (file:///home/user/POS-fr/node_modules/@prisma/adapter-pg/dist/index.mjs:642:11)
+        at PrismaPgAdapter.performIO (file:///home/user/POS-fr/node_modules/@prisma/adapter-pg/dist/index.mjs:637:12)
+        at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+        at async PrismaPgAdapter.queryRaw (file:///home/user/POS-fr/node_modules/@prisma/adapter-pg/dist/index.mjs:568:30)
+        at async e.interpretNode (/home/user/POS-fr/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:186:26)
+        at async e.interpretNode (/home/user/POS-fr/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:213:41)
+        at async e.interpretNode (/home/user/POS-fr/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:272:41)
+        at async e.run (/home/user/POS-fr/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:94:23)
+        at async e.execute (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/core/engines/client/LocalExecutor.ts:81:12)
+        at async jt.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/core/engines/client/ClientEngine.ts:504:22) {
+      cause: [Object]
+    }
+  },
+  clientVersion: '7.8.0'
+}
+--> GET /api/shifts/current?userId=cmq87dtc50003o3v99kxq3djl [31m500[0m 343ms
+<-- POST /api/shifts
+--> POST /api/shifts [33m400[0m 2ms
+<-- POST /api/shifts
+--> POST /api/shifts [32m201[0m 12s
+<-- GET /api/shifts/current?userId=cmq87dtc50003o3v99kxq3djl
+[API Error] http://localhost:3001/api/shifts/current?userId=cmq87dtc50003o3v99kxq3djl PrismaClientKnownRequestError: 
+Invalid `prisma.user.findUnique()` invocation in
+/home/user/POS-fr/apps/api/src/middleware/store-context.ts:10:34
+
+   7 const userId = c.req.header('X-User-Id');
+   8 if (!userId) return { storeId: null, role: 'CASHIER', userId: null, supplierId: null };
+   9 
+→ 10 const user = await prisma.user.findUnique(
+The column `User.supplierId` does not exist in the current database.
+    at zr.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async Array.$allOperations (/home/user/POS-fr/apps/api/src/lib/prisma.ts:26:20)
+    at async a (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    at async getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:10:16)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/shifts.ts:9:23)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:79:5) {
+  code: 'P2022',
+  meta: {
+    modelName: 'User',
+    driverAdapterError: DriverAdapterError: ColumnNotFound
+        at PrismaPgAdapter.onError (file:///home/user/POS-fr/node_modules/@prisma/adapter-pg/dist/index.mjs:642:11)
+        at PrismaPgAdapter.performIO (file:///home/user/POS-fr/node_modules/@prisma/adapter-pg/dist/index.mjs:637:12)
+        at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+        at async PrismaPgAdapter.queryRaw (file:///home/user/POS-fr/node_modules/@prisma/adapter-pg/dist/index.mjs:568:30)
+        at async e.interpretNode (/home/user/POS-fr/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:186:26)
+        at async e.interpretNode (/home/user/POS-fr/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:213:41)
+        at async e.interpretNode (/home/user/POS-fr/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:272:41)
+        at async e.run (/home/user/POS-fr/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:94:23)
+        at async e.execute (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/core/engines/client/LocalExecutor.ts:81:12)
+        at async jt.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/core/engines/client/ClientEngine.ts:504:22) {
+      cause: [Object]
+    }
+  },
+  clientVersion: '7.8.0'
+}
+--> GET /api/shifts/current?userId=cmq87dtc50003o3v99kxq3djl [31m500[0m 2s
+<-- POST /api/shifts/cmq87e5ax0004o3v98odvveoc/cashlog
+[API Error] http://localhost:3001/api/shifts/cmq87e5ax0004o3v98odvveoc/cashlog PrismaClientKnownRequestError: 
+Invalid `prisma.cashLog.create()` invocation in
+/home/user/POS-fr/apps/api/src/routes/shifts.ts:42:36
+
+  39 // Add a cash log entry (pay-in / pay-out)
+  40 shiftsRouter.post('/:id/cashlog', async (c) => {
+  41   const body = await c.req.json<{ amount: number; type: 'PAY_IN' | 'PAY_OUT'; reason: string }>();
+→ 42   const log = await prisma.cashLog.create(
+
+    at zr.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async Array.$allOperations (/home/user/POS-fr/apps/api/src/lib/prisma.ts:28:51)
+    at async a (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/shifts.ts:42:15)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:79:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17) {
+  code: 'ETIMEDOUT',
+  meta: { modelName: 'CashLog' },
+  clientVersion: '7.8.0'
+}
+--> POST /api/shifts/cmq87e5ax0004o3v98odvveoc/cashlog [31m500[0m 1s
+<-- POST /api/shifts/cmq87e5ax0004o3v98odvveoc/cashlog
+[API Error] http://localhost:3001/api/shifts/cmq87e5ax0004o3v98odvveoc/cashlog PrismaClientKnownRequestError: 
+Invalid `prisma.cashLog.create()` invocation in
+/home/user/POS-fr/apps/api/src/routes/shifts.ts:42:36
+
+  39 // Add a cash log entry (pay-in / pay-out)
+  40 shiftsRouter.post('/:id/cashlog', async (c) => {
+  41   const body = await c.req.json<{ amount: number; type: 'PAY_IN' | 'PAY_OUT'; reason: string }>();
+→ 42   const log = await prisma.cashLog.create(
+
+    at zr.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async Array.$allOperations (/home/user/POS-fr/apps/api/src/lib/prisma.ts:28:51)
+    at async a (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/shifts.ts:42:15)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:79:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17) {
+  code: 'ETIMEDOUT',
+  meta: { modelName: 'CashLog' },
+  clientVersion: '7.8.0'
+}
+--> POST /api/shifts/cmq87e5ax0004o3v98odvveoc/cashlog [31m500[0m 1s
+<-- POST /api/products
+--> POST /api/products [33m400[0m 0ms
+<-- POST /api/products
+--> POST /api/products [33m400[0m 0ms
+<-- GET /api/products
+[API Error] http://localhost:3001/api/products PrismaClientKnownRequestError: 
+Invalid `prisma.categoryVat.findMany()` invocation in
+/home/user/POS-fr/apps/api/src/routes/products.ts:12:41
+
+   9 
+  10 // Load all CategoryVat rows once and return a category → effective etimsCode map
+  11 async function loadCatVatMap() {
+→ 12   const rows = await prisma.categoryVat.findMany(
+
+    at zr.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at runNextTicks (node:internal/process/task_queues:69:3)
+    at listOnTimeout (node:internal/timers:569:9)
+    at process.processTimers (node:internal/timers:543:7)
+    at async Array.$allOperations (/home/user/POS-fr/apps/api/src/lib/prisma.ts:28:51)
+    at async a (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    at async loadCatVatMap (/home/user/POS-fr/apps/api/src/routes/products.ts:12:16) {
+  code: 'ETIMEDOUT',
+  meta: { modelName: 'CategoryVat' },
+  clientVersion: '7.8.0'
+}
+--> GET /api/products [31m500[0m 1s
+<-- PATCH /api/products/undefined
+[API Error] http://localhost:3001/api/products/undefined PrismaClientKnownRequestError: 
+Invalid `prisma.item.findUnique()` invocation in
+/home/user/POS-fr/apps/api/src/routes/products.ts:368:38
+
+  365 productsRouter.patch('/:id', async (c) => {
+  366   const id = c.req.param('id');
+  367 
+→ 368   const existing = await prisma.item.findUnique(
+
+    at zr.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async Array.$allOperations (/home/user/POS-fr/apps/api/src/lib/prisma.ts:28:51)
+    at async a (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/products.ts:368:20)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:79:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17) {
+  code: 'ETIMEDOUT',
+  meta: { modelName: 'Item' },
+  clientVersion: '7.8.0'
+}
+--> PATCH /api/products/undefined [31m500[0m 1s
+<-- POST /api/products/undefined/adjust
+[API Error] http://localhost:3001/api/products/undefined/adjust PrismaClientKnownRequestError: 
+Invalid `prisma.item.findUnique()` invocation in
+/home/user/POS-fr/apps/api/src/routes/products.ts:652:38
+
+  649 // Adjust stock — accepts delta in base units OR in a specific packaging tier
+  650 productsRouter.post('/:id/adjust', async (c) => {
+  651   const id = c.req.param('id');
+→ 652   const existing = await prisma.item.findUnique(
+
+    at zr.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async Array.$allOperations (/home/user/POS-fr/apps/api/src/lib/prisma.ts:28:51)
+    at async a (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/products.ts:652:20)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:79:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17) {
+  code: 'ETIMEDOUT',
+  meta: { modelName: 'Item' },
+  clientVersion: '7.8.0'
+}
+--> POST /api/products/undefined/adjust [31m500[0m 1s
+<-- POST /api/products/undefined/adjust
+--> POST /api/products/undefined/adjust [33m404[0m 5s
+<-- GET /api/settings
+--> GET /api/settings [32m200[0m 0ms
+<-- POST /api/settings
+--> POST /api/settings [33m400[0m 2ms
+<-- GET /api/settings
+--> GET /api/settings [32m200[0m 0ms
+<-- POST /api/transactions
+[API Error] http://localhost:3001/api/transactions PrismaClientKnownRequestError: 
+Invalid `prisma.user.findUnique()` invocation in
+/home/user/POS-fr/apps/api/src/middleware/store-context.ts:10:34
+
+   7 const userId = c.req.header('X-User-Id');
+   8 if (!userId) return { storeId: null, role: 'CASHIER', userId: null, supplierId: null };
+   9 
+→ 10 const user = await prisma.user.findUnique(
+The column `User.supplierId` does not exist in the current database.
+    at zr.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async Array.$allOperations (/home/user/POS-fr/apps/api/src/lib/prisma.ts:26:20)
+    at async a (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    at async getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:10:16)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/transactions.ts:12:23)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:79:5) {
+  code: 'P2022',
+  meta: {
+    modelName: 'User',
+    driverAdapterError: DriverAdapterError: ColumnNotFound
+        at PrismaPgAdapter.onError (file:///home/user/POS-fr/node_modules/@prisma/adapter-pg/dist/index.mjs:642:11)
+        at PrismaPgAdapter.performIO (file:///home/user/POS-fr/node_modules/@prisma/adapter-pg/dist/index.mjs:637:12)
+        at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+        at async PrismaPgAdapter.queryRaw (file:///home/user/POS-fr/node_modules/@prisma/adapter-pg/dist/index.mjs:568:30)
+        at async e.interpretNode (/home/user/POS-fr/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:186:26)
+        at async e.interpretNode (/home/user/POS-fr/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:213:41)
+        at async e.interpretNode (/home/user/POS-fr/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:272:41)
+        at async e.run (/home/user/POS-fr/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:94:23)
+        at async e.execute (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/core/engines/client/LocalExecutor.ts:81:12)
+        at async jt.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/core/engines/client/ClientEngine.ts:504:22) {
+      cause: [Object]
+    }
+  },
+  clientVersion: '7.8.0'
+}
+--> POST /api/transactions [31m500[0m 392ms
+<-- GET /api/products/undefined
+[API Error] http://localhost:3001/api/products/undefined PrismaClientKnownRequestError: 
+Invalid `prisma.categoryVat.findMany()` invocation in
+/home/user/POS-fr/apps/api/src/routes/products.ts:12:41
+
+   9 
+  10 // Load all CategoryVat rows once and return a category → effective etimsCode map
+  11 async function loadCatVatMap() {
+→ 12   const rows = await prisma.categoryVat.findMany(
+
+    at zr.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at runNextTicks (node:internal/process/task_queues:69:3)
+    at listOnTimeout (node:internal/timers:569:9)
+    at process.processTimers (node:internal/timers:543:7)
+    at async Array.$allOperations (/home/user/POS-fr/apps/api/src/lib/prisma.ts:28:51)
+    at async a (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    at async loadCatVatMap (/home/user/POS-fr/apps/api/src/routes/products.ts:12:16) {
+  code: 'ETIMEDOUT',
+  meta: { modelName: 'CategoryVat' },
+  clientVersion: '7.8.0'
+}
+--> GET /api/products/undefined [31m500[0m 1s
+<-- GET /api/products/undefined
+[API Error] http://localhost:3001/api/products/undefined PrismaClientKnownRequestError: 
+Invalid `prisma.categoryVat.findMany()` invocation in
+/home/user/POS-fr/apps/api/src/routes/products.ts:12:41
+
+   9 
+  10 // Load all CategoryVat rows once and return a category → effective etimsCode map
+  11 async function loadCatVatMap() {
+→ 12   const rows = await prisma.categoryVat.findMany(
+
+    at zr.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at runNextTicks (node:internal/process/task_queues:69:3)
+    at listOnTimeout (node:internal/timers:569:9)
+    at process.processTimers (node:internal/timers:543:7)
+    at async Array.$allOperations (/home/user/POS-fr/apps/api/src/lib/prisma.ts:28:51)
+    at async a (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    at async loadCatVatMap (/home/user/POS-fr/apps/api/src/routes/products.ts:12:16) {
+  code: 'ETIMEDOUT',
+  meta: { modelName: 'CategoryVat' },
+  clientVersion: '7.8.0'
+}
+--> GET /api/products/undefined [31m500[0m 1s
+<-- GET /api/transactions
+[API Error] http://localhost:3001/api/transactions PrismaClientKnownRequestError: 
+Invalid `prisma.user.findUnique()` invocation in
+/home/user/POS-fr/apps/api/src/middleware/store-context.ts:10:34
+
+   7 const userId = c.req.header('X-User-Id');
+   8 if (!userId) return { storeId: null, role: 'CASHIER', userId: null, supplierId: null };
+   9 
+→ 10 const user = await prisma.user.findUnique(
+
+    at zr.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async Array.$allOperations (/home/user/POS-fr/apps/api/src/lib/prisma.ts:28:51)
+    at async a (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    at async getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:10:16)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/transactions.ts:387:23)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:79:5) {
+  code: 'ETIMEDOUT',
+  meta: { modelName: 'User' },
+  clientVersion: '7.8.0'
+}
+--> GET /api/transactions [31m500[0m 1s
+<-- POST /api/transactions
+[API Error] http://localhost:3001/api/transactions PrismaClientKnownRequestError: 
+Invalid `prisma.user.findUnique()` invocation in
+/home/user/POS-fr/apps/api/src/middleware/store-context.ts:10:34
+
+   7 const userId = c.req.header('X-User-Id');
+   8 if (!userId) return { storeId: null, role: 'CASHIER', userId: null, supplierId: null };
+   9 
+→ 10 const user = await prisma.user.findUnique(
+
+    at zr.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async Array.$allOperations (/home/user/POS-fr/apps/api/src/lib/prisma.ts:28:51)
+    at async a (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    at async getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:10:16)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/transactions.ts:12:23)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:79:5) {
+  code: 'ETIMEDOUT',
+  meta: { modelName: 'User' },
+  clientVersion: '7.8.0'
+}
+--> POST /api/transactions [31m500[0m 1s
+<-- POST /api/transactions
+--> POST /api/transactions [33m400[0m 0ms
+<-- GET /api/products/undefined
+[API Error] http://localhost:3001/api/products/undefined PrismaClientKnownRequestError: 
+Invalid `prisma.categoryVat.findMany()` invocation in
+/home/user/POS-fr/apps/api/src/routes/products.ts:12:41
+
+   9 
+  10 // Load all CategoryVat rows once and return a category → effective etimsCode map
+  11 async function loadCatVatMap() {
+→ 12   const rows = await prisma.categoryVat.findMany(
+
+    at zr.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at runNextTicks (node:internal/process/task_queues:69:3)
+    at listOnTimeout (node:internal/timers:569:9)
+    at process.processTimers (node:internal/timers:543:7)
+    at async Array.$allOperations (/home/user/POS-fr/apps/api/src/lib/prisma.ts:28:51)
+    at async a (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    at async loadCatVatMap (/home/user/POS-fr/apps/api/src/routes/products.ts:12:16) {
+  code: 'ETIMEDOUT',
+  meta: { modelName: 'CategoryVat' },
+  clientVersion: '7.8.0'
+}
+--> GET /api/products/undefined [31m500[0m 1s
+<-- POST /api/transactions/undefined/refund
+[API Error] http://localhost:3001/api/transactions/undefined/refund PrismaClientValidationError: 
+Invalid `prisma.lineItem.findMany()` invocation in
+/home/user/POS-fr/apps/api/src/routes/transactions.ts:315:43
+
+  312   items: Array<{ lineItemId: string; isDamaged: boolean }>;
+  313 }>();
+  314 
+→ 315 const lineItems = await prisma.lineItem.findMany({
+        where: {
+          id: {
+            in: [
+              undefined
+              ~~~~~~~~~
+            ]
+          },
+          transactionId: "undefined"
+        },
+        select: {
+          id: true,
+          itemId: true,
+          quantity: true
+        }
+      })
+
+Invalid value for argument `in[0]`: Can not use `undefined` value within array. Use `null` or filter out `undefined` values.
+    at throwValidationException (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/core/errorRendering/throwValidationException.ts:46:9)
+    at e.throwValidationError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/core/jsonProtocol/serializeJsonQuery.ts:458:5)
+    at serializeArgumentsArray (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/core/jsonProtocol/serializeJsonQuery.ts:395:15)
+    at serializeArgumentsValue (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/core/jsonProtocol/serializeJsonQuery.ts:310:12)
+    at serializeArgumentsObject (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/core/jsonProtocol/serializeJsonQuery.ts:374:21)
+    at serializeArgumentsValue (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/core/jsonProtocol/serializeJsonQuery.ts:340:12)
+    at serializeArgumentsObject (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/core/jsonProtocol/serializeJsonQuery.ts:374:21)
+    at serializeArgumentsValue (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/core/jsonProtocol/serializeJsonQuery.ts:340:12)
+    at serializeArgumentsObject (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/core/jsonProtocol/serializeJsonQuery.ts:374:21)
+    at Et (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/core/jsonProtocol/serializeJsonQuery.ts:127:16) {
+  clientVersion: '7.8.0'
+}
+--> POST /api/transactions/undefined/refund [31m500[0m 6ms
+<-- DELETE /api/transactions/undefined/void
+[API Error] http://localhost:3001/api/transactions/undefined/void PrismaClientKnownRequestError: 
+Invalid `prisma.transaction.findUnique()` invocation in
+/home/user/POS-fr/apps/api/src/routes/transactions.ts:362:39
+
+  359 transactionsRouter.delete('/:id/void', async (c) => {
+  360   const txId = c.req.param('id');
+  361 
+→ 362   const tx = await prisma.transaction.findUnique(
+
+    at zr.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async Array.$allOperations (/home/user/POS-fr/apps/api/src/lib/prisma.ts:28:51)
+    at async a (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/transactions.ts:362:14)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:79:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17) {
+  code: 'ETIMEDOUT',
+  meta: { modelName: 'Transaction' },
+  clientVersion: '7.8.0'
+}
+--> DELETE /api/transactions/undefined/void [31m500[0m 1s
+<-- POST /api/transactions
+[API Error] http://localhost:3001/api/transactions PrismaClientKnownRequestError: 
+Invalid `prisma.user.findUnique()` invocation in
+/home/user/POS-fr/apps/api/src/middleware/store-context.ts:10:34
+
+   7 const userId = c.req.header('X-User-Id');
+   8 if (!userId) return { storeId: null, role: 'CASHIER', userId: null, supplierId: null };
+   9 
+→ 10 const user = await prisma.user.findUnique(
+
+    at zr.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async Array.$allOperations (/home/user/POS-fr/apps/api/src/lib/prisma.ts:28:51)
+    at async a (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    at async getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:10:16)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/transactions.ts:12:23)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:79:5) {
+  code: 'ETIMEDOUT',
+  meta: { modelName: 'User' },
+  clientVersion: '7.8.0'
+}
+--> POST /api/transactions [31m500[0m 1s
+<-- DELETE /api/transactions/undefined/void
+--> DELETE /api/transactions/undefined/void [33m404[0m 2s
+<-- DELETE /api/transactions/nonexistent/void
+--> DELETE /api/transactions/nonexistent/void [33m404[0m 924ms
+<-- GET /api/reports/sales?from=2026-06-10&to=2026-06-10
+[API Error] http://localhost:3001/api/reports/sales?from=2026-06-10&to=2026-06-10 PrismaClientKnownRequestError: 
+Invalid `prisma.transaction.findMany()` invocation in
+/home/user/POS-fr/apps/api/src/routes/reports.ts:21:49
+
+  18 const { storeId } = await getStoreContext(c);
+  19 const { from, to } = dateRange(c.req.query('from'), c.req.query('to'));
+  20 
+→ 21 const transactions = await prisma.transaction.findMany(
+The column `Transaction.splitChange` does not exist in the current database.
+    at zr.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async Array.$allOperations (/home/user/POS-fr/apps/api/src/lib/prisma.ts:26:20)
+    at async a (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/reports.ts:21:24)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:79:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17) {
+  code: 'P2022',
+  meta: {
+    modelName: 'Transaction',
+    driverAdapterError: DriverAdapterError: ColumnNotFound
+        at PrismaPgAdapter.onError (file:///home/user/POS-fr/node_modules/@prisma/adapter-pg/dist/index.mjs:642:11)
+        at PrismaPgAdapter.performIO (file:///home/user/POS-fr/node_modules/@prisma/adapter-pg/dist/index.mjs:637:12)
+        at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+        at async PrismaPgAdapter.queryRaw (file:///home/user/POS-fr/node_modules/@prisma/adapter-pg/dist/index.mjs:568:30)
+        at async e.interpretNode (/home/user/POS-fr/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:186:26)
+        at async e.interpretNode (/home/user/POS-fr/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:128:29)
+        at async e.interpretNode (/home/user/POS-fr/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:272:41)
+        at async e.run (/home/user/POS-fr/node_modules/@prisma/client-engine-runtime/src/interpreter/query-interpreter.ts:94:23)
+        at async e.execute (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/core/engines/client/LocalExecutor.ts:81:12)
+        at async jt.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/core/engines/client/ClientEngine.ts:504:22) {
+      cause: [Object]
+    }
+  },
+  clientVersion: '7.8.0'
+}
+--> GET /api/reports/sales?from=2026-06-10&to=2026-06-10 [31m500[0m 1s
+<-- GET /api/reports/shifts?from=2026-06-10&to=2026-06-10
+[API Error] http://localhost:3001/api/reports/shifts?from=2026-06-10&to=2026-06-10 PrismaClientKnownRequestError: 
+Invalid `prisma.shift.findMany()` invocation in
+/home/user/POS-fr/apps/api/src/routes/reports.ts:83:37
+
+  80 const { storeId } = await getStoreContext(c);
+  81 const { from, to } = dateRange(c.req.query('from'), c.req.query('to'));
+  82 
+→ 83 const shifts = await prisma.shift.findMany(
+
+    at zr.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async Array.$allOperations (/home/user/POS-fr/apps/api/src/lib/prisma.ts:28:51)
+    at async a (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/reports.ts:83:18)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:79:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17) {
+  code: 'ETIMEDOUT',
+  meta: { modelName: 'Shift' },
+  clientVersion: '7.8.0'
+}
+--> GET /api/reports/shifts?from=2026-06-10&to=2026-06-10 [31m500[0m 1s
+<-- GET /api/reports/inventory
+[API Error] http://localhost:3001/api/reports/inventory PrismaClientKnownRequestError: 
+Invalid `prisma.item.findMany()` invocation in
+/home/user/POS-fr/apps/api/src/routes/reports.ts:129:17
+
+  126 reportsRouter.get('/inventory', async (c) => {
+  127   const { storeId } = await getStoreContext(c);
+  128   const [items, adjustments] = await Promise.all([
+→ 129     prisma.item.findMany(
+
+    at zr.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at runNextTicks (node:internal/process/task_queues:69:3)
+    at listOnTimeout (node:internal/timers:569:9)
+    at process.processTimers (node:internal/timers:543:7)
+    at async Array.$allOperations (/home/user/POS-fr/apps/api/src/lib/prisma.ts:28:51)
+    at async a (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    at async Promise.all (index 0) {
+  code: 'ETIMEDOUT',
+  meta: { modelName: 'Item' },
+  clientVersion: '7.8.0'
+}
+--> GET /api/reports/inventory [31m500[0m 1s
+<-- GET /api/stores/cmq87dp2w0000o3v99prj7c6l/stats
+[API Error] http://localhost:3001/api/stores/cmq87dp2w0000o3v99prj7c6l/stats PrismaClientKnownRequestError: 
+Invalid `prisma.transaction.findMany()` invocation in
+/home/user/POS-fr/apps/api/src/routes/stores.ts:88:24
+
+  85 weekStart.setHours(0, 0, 0, 0);
+  86 
+  87 const [todayTx, weekTx, activeShifts] = await Promise.all([
+→ 88   prisma.transaction.findMany(
+
+    at zr.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at runNextTicks (node:internal/process/task_queues:69:3)
+    at listOnTimeout (node:internal/timers:569:9)
+    at process.processTimers (node:internal/timers:543:7)
+    at async Array.$allOperations (/home/user/POS-fr/apps/api/src/lib/prisma.ts:28:51)
+    at async a (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    at async Promise.all (index 0) {
+  code: 'ETIMEDOUT',
+  meta: { modelName: 'Transaction' },
+  clientVersion: '7.8.0'
+}
+--> GET /api/stores/cmq87dp2w0000o3v99prj7c6l/stats [31m500[0m 1s
+<-- GET /api/superadmin/dashboard
+--> GET /api/superadmin/dashboard [33m403[0m 1ms
+<-- POST /api/shifts/cmq87e5ax0004o3v98odvveoc/close
+[API Error] http://localhost:3001/api/shifts/cmq87e5ax0004o3v98odvveoc/close PrismaClientKnownRequestError: 
+Invalid `prisma.shift.findUnique()` invocation in
+/home/user/POS-fr/apps/api/src/routes/shifts.ts:56:36
+
+  53 // Close a shift — calculates expected vs. actual cash variance
+  54 shiftsRouter.post('/:id/close', async (c) => {
+  55   const body = await c.req.json<{ actualCash: number }>();
+→ 56   const shift = await prisma.shift.findUnique(
+
+    at zr.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async Array.$allOperations (/home/user/POS-fr/apps/api/src/lib/prisma.ts:28:51)
+    at async a (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/shifts.ts:56:17)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:79:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17) {
+  code: 'ETIMEDOUT',
+  meta: { modelName: 'Shift' },
+  clientVersion: '7.8.0'
+}
+--> POST /api/shifts/cmq87e5ax0004o3v98odvveoc/close [31m500[0m 1s
+<-- GET /api/shifts/current?userId=cmq87dtc50003o3v99kxq3djl
+[API Error] http://localhost:3001/api/shifts/current?userId=cmq87dtc50003o3v99kxq3djl PrismaClientKnownRequestError: 
+Invalid `prisma.user.findUnique()` invocation in
+/home/user/POS-fr/apps/api/src/middleware/store-context.ts:10:34
+
+   7 const userId = c.req.header('X-User-Id');
+   8 if (!userId) return { storeId: null, role: 'CASHIER', userId: null, supplierId: null };
+   9 
+→ 10 const user = await prisma.user.findUnique(
+
+    at zr.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async Array.$allOperations (/home/user/POS-fr/apps/api/src/lib/prisma.ts:28:51)
+    at async a (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    at async getStoreContext (/home/user/POS-fr/apps/api/src/middleware/store-context.ts:10:16)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/shifts.ts:9:23)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:79:5) {
+  code: 'ETIMEDOUT',
+  meta: { modelName: 'User' },
+  clientVersion: '7.8.0'
+}
+--> GET /api/shifts/current?userId=cmq87dtc50003o3v99kxq3djl [31m500[0m 1s
+<-- DELETE /api/users/cmq87dtc50003o3v99kxq3djl
+[API Error] http://localhost:3001/api/users/cmq87dtc50003o3v99kxq3djl PrismaClientKnownRequestError: 
+Invalid `prisma.shift.count()` invocation in
+/home/user/POS-fr/apps/api/src/routes/users.ts:102:18
+
+   99 usersRouter.delete('/:id', async (c) => {
+  100   const id = c.req.param('id');
+  101   const [shifts, txs] = await Promise.all([
+→ 102     prisma.shift.count(
+
+    at zr.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at runNextTicks (node:internal/process/task_queues:69:3)
+    at listOnTimeout (node:internal/timers:569:9)
+    at process.processTimers (node:internal/timers:543:7)
+    at async Array.$allOperations (/home/user/POS-fr/apps/api/src/lib/prisma.ts:28:51)
+    at async a (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    at async Promise.all (index 0) {
+  code: 'ETIMEDOUT',
+  meta: { modelName: 'Shift' },
+  clientVersion: '7.8.0'
+}
+--> DELETE /api/users/cmq87dtc50003o3v99kxq3djl [31m500[0m 1s
+<-- POST /api/users
+[API Error] http://localhost:3001/api/users AggregateError [ETIMEDOUT]: 
+    at /home/user/POS-fr/node_modules/pg-pool/index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async PrismaPgAdapter.startTransaction (file:///home/user/POS-fr/node_modules/@prisma/adapter-pg/dist/index.mjs:684:18)
+    at async qt.#r (/home/user/POS-fr/node_modules/@prisma/client-engine-runtime/src/transaction-manager/transaction-manager.ts:163:31)
+    at async qt.startTransaction (/home/user/POS-fr/node_modules/@prisma/client-engine-runtime/src/transaction-manager/transaction-manager.ts:103:12)
+    at async e.startTransaction (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/core/engines/client/LocalExecutor.ts:93:18)
+    at async jt.transaction (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/core/engines/client/ClientEngine.ts:444:18)
+    at async Proxy._transactionWithCallback (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:798:16)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/users.ts:32:18)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17) {
+  code: 'ETIMEDOUT',
+  [errors]: [
+    Error: connect ETIMEDOUT 34.241.16.247:6543
+        at createConnectionError (node:net:1678:14)
+        at Timeout.internalConnectMultipleTimeout (node:net:1737:38)
+        at listOnTimeout (node:internal/timers:610:11)
+        at process.processTimers (node:internal/timers:543:7) {
+      errno: -110,
+      code: 'ETIMEDOUT',
+      syscall: 'connect',
+      address: '34.241.16.247',
+      port: 6543
+    },
+    Error: connect ENETUNREACH 64:ff9b::6c80:d8b0:6543 - Local (:::0)
+        at internalConnectMultiple (node:net:1206:16)
+        at Timeout.internalConnectMultipleTimeout (node:net:1742:5)
+        at listOnTimeout (node:internal/timers:610:11)
+        at process.processTimers (node:internal/timers:543:7) {
+      errno: -101,
+      code: 'ENETUNREACH',
+      syscall: 'connect',
+      address: '64:ff9b::6c80:d8b0',
+      port: 6543
+    },
+    Error: connect ETIMEDOUT 108.128.216.176:6543
+        at createConnectionError (node:net:1678:14)
+        at Timeout.internalConnectMultipleTimeout (node:net:1737:38)
+        at listOnTimeout (node:internal/timers:610:11)
+        at process.processTimers (node:internal/timers:543:7) {
+      errno: -110,
+      code: 'ETIMEDOUT',
+      syscall: 'connect',
+      address: '108.128.216.176',
+      port: 6543
+    },
+    Error: connect ENETUNREACH 64:ff9b::22f1:10f7:6543 - Local (:::0)
+        at internalConnectMultiple (node:net:1206:16)
+        at Timeout.internalConnectMultipleTimeout (node:net:1742:5)
+        at listOnTimeout (node:internal/timers:610:11)
+        at process.processTimers (node:internal/timers:543:7) {
+      errno: -101,
+      code: 'ENETUNREACH',
+      syscall: 'connect',
+      address: '64:ff9b::22f1:10f7',
+      port: 6543
+    }
+  ]
+}
+--> POST /api/users [31m500[0m 505ms
+<-- DELETE /api/users/undefined
+[API Error] http://localhost:3001/api/users/undefined PrismaClientKnownRequestError: 
+Invalid `prisma.shift.count()` invocation in
+/home/user/POS-fr/apps/api/src/routes/users.ts:102:18
+
+   99 usersRouter.delete('/:id', async (c) => {
+  100   const id = c.req.param('id');
+  101   const [shifts, txs] = await Promise.all([
+→ 102     prisma.shift.count(
+
+    at zr.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async Array.$allOperations (/home/user/POS-fr/apps/api/src/lib/prisma.ts:28:51)
+    at async a (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    at async Promise.all (index 0)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/users.ts:101:25)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:79:5) {
+  code: 'ETIMEDOUT',
+  meta: { modelName: 'Shift' },
+  clientVersion: '7.8.0'
+}
+--> DELETE /api/users/undefined [31m500[0m 1s
+<-- POST /api/products/import
+--> POST /api/products/import [33m400[0m 2ms
+<-- DELETE /api/stores/cmq87dp2w0000o3v99prj7c6l
+[API Error] http://localhost:3001/api/stores/cmq87dp2w0000o3v99prj7c6l PrismaClientKnownRequestError: 
+Invalid `prisma.store.findUnique()` invocation in
+/home/user/POS-fr/apps/api/src/routes/stores.ts:127:36
+
+  124 // DELETE /stores/:id — hard-delete a store and all its data (used by tests + admin)
+  125 storesRouter.delete('/:id', async (c) => {
+  126   const id = c.req.param('id');
+→ 127   const store = await prisma.store.findUnique(
+
+    at zr.handleRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:237:13)
+    at zr.handleAndLogRequestError (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:183:12)
+    at zr.request (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/RequestHandler.ts:152:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async Array.$allOperations (/home/user/POS-fr/apps/api/src/lib/prisma.ts:28:51)
+    at async a (/home/user/POS-fr/node_modules/@prisma/client/src/runtime/getPrismaClient.ts:963:24)
+    at async <anonymous> (/home/user/POS-fr/apps/api/src/routes/stores.ts:127:17)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17)
+    at async cors2 (file:///home/user/POS-fr/node_modules/hono/dist/middleware/cors/index.js:79:5)
+    at async dispatch (file:///home/user/POS-fr/node_modules/hono/dist/compose.js:22:17) {
+  code: 'ETIMEDOUT',
+  meta: { modelName: 'Store' },
+  clientVersion: '7.8.0'
+}
+--> DELETE /api/stores/cmq87dp2w0000o3v99prj7c6l [31m500[0m 1s

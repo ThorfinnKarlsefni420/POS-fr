@@ -22,18 +22,19 @@ usersRouter.post('/', async (c) => {
     storeId?: string;
   }>();
 
-  // If creating an ADMIN, create a corresponding supplier
-  const isCreatingAdmin = body.role === 'ADMIN' || !body.role; // Default role is CASHIER in schema, assume ADMIN check here
+  // Default role is CASHIER in schema
+  const role = body.role ?? 'CASHIER';
   
-  // Use storeId from body or default to Hasan's store if creating admin
-  const storeId = body.storeId ?? 'store_hasans';
+  // Use storeId from body if provided. 
+  // For SUPERADMIN, it can be null. For others, it should ideally be provided.
+  const storeId = body.storeId ?? (role === 'SUPERADMIN' ? null : undefined);
 
   const result = await prisma.$transaction(async (tx) => {
     const user = await tx.user.create({
       data: {
         name: body.name,
         pin: body.pin,
-        role: body.role ?? 'CASHIER',
+        role,
         storeId,
       },
       select: { id: true, name: true, role: true, storeId: true },
