@@ -19,7 +19,7 @@ import { PackagingTierEditor } from './packaging-tier-editor';
 import { TierImportDialog } from './tier-import-dialog';
 import {
   Search, Pencil, Trash2, Package, ImageUp, Loader2, SlidersHorizontal,
-  Plus, X, Check, Layers, ArrowRightLeft, Warehouse, ShoppingBag, Monitor,
+  Plus, X, Layers, ArrowRightLeft, Warehouse, ShoppingBag, Monitor,
   MoreHorizontal, Truck, Barcode, History, TrendingUp, TrendingDown, Scissors, Upload,
 } from 'lucide-react';
 

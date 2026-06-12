@@ -81,7 +81,7 @@ async function testOptionA() {
       'BROOKSIDE 6*500ML,Brookside Milk 500ml,Dairy - Milk,Piece,55,65,240,16,5900012,Six-Pack,6,330,390,Carton,4,1320,1560',
     ].join('\n');
 
-    const { products, errors, skipped } = await parseSpreadsheet(csvFile(csv), SERVICE_FEE);
+    const { products, errors } = await parseSpreadsheet(csvFile(csv), SERVICE_FEE);
 
     console.log('\nA1 — explicit L1 + L2 columns');
     assert('no errors', errors.length === 0, errors.join(', '));

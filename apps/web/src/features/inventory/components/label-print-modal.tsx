@@ -152,7 +152,7 @@ function PrintPopulator({ barcode, copies, displayName, price }: { barcode: stri
         const el = document.getElementById(`barcode-print-${i}`);
         if (el && barcode) {
           try {
-            JsBarcode(el as SVGElement, barcode, { format: 'CODE128', width: 2, height: 50, displayValue: true, fontSize: 11, margin: 4 });
+            JsBarcode(el as unknown as SVGElement, barcode, { format: 'CODE128', width: 2, height: 50, displayValue: true, fontSize: 11, margin: 4 });
           } catch { /* skip invalid */ }
         }
       }

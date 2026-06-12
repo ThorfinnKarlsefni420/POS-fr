@@ -14,7 +14,6 @@ export function ServiceFeeSettings() {
     cloudinaryUploadPreset, setCloudinaryUploadPreset,
     consignmentEnabled, setConsignmentEnabled,
     consignmentRate, setConsignmentRate,
-    consignmentType, setConsignmentType,
   } = useSettingsStore();
 
   const { data: remoteSettings } = useQuery({

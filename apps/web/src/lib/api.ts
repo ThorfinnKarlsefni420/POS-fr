@@ -597,6 +597,9 @@ export interface ApiSettings {
   storeName: string;
   cloudinaryCloudName: string;
   cloudinaryUploadPreset: string;
+  consignmentEnabled: boolean;
+  consignmentRate: number;
+  consignmentType: string;
 }
 
 export interface ApiPO {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, ApiPO, ApiPODetail, ApiPOLineInput } from '@/lib/api';
+import { api, ApiPODetail, ApiPOLineInput } from '@/lib/api';
 import { useProducts } from '@/hooks/use-products';
 import { Plus, ChevronRight, Truck, Check, X, Search, PackageCheck } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';

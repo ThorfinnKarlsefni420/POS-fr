@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, ApiCustomer } from '@/lib/api';
+import { api } from '@/lib/api';
 import { useAuthStore } from '@/features/auth/store/use-auth-store';
-import { UserPlus, Search, ChevronRight, AlertTriangle, DollarSign, CreditCard, X, Check } from 'lucide-react';
+import { UserPlus, Search, ChevronRight, CreditCard, X, Check } from 'lucide-react';
 
 export function CustomersPage() {
   const { user } = useAuthStore();

@@ -2,14 +2,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { useState } from 'react';
-import { Loader2, CheckCircle, Clock, ArrowRight } from 'lucide-react';
+import { Loader2, CheckCircle, Clock } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/store/use-auth-store';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export function ConsignmentSettlementDashboard() {
   const queryClient = useQueryClient();
-  const [selectedSaleIds, setSelectedSaleIds] = useState<string[]>([]);
   const { user } = useAuthStore();
   const isSuperadmin = user?.role === 'SUPERADMIN';
 
@@ -29,7 +27,6 @@ export function ConsignmentSettlementDashboard() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pending-consignment'] });
       queryClient.invalidateQueries({ queryKey: ['settlements-consignment'] });
-      setSelectedSaleIds([]);
     },
   });
 

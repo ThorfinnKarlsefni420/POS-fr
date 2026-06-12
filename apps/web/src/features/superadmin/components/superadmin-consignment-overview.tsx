@@ -6,7 +6,7 @@ import { Loader2, AlertCircle } from 'lucide-react';
 export function SuperadminConsignmentOverview() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ['superadmin-consignment-pending'],
-    queryFn: () => api.get('/superadmin/consignment/pending').then(res => res.data),
+    queryFn: () => api.superadmin.pendingConsignment(),
     staleTime: 60_000,
   });
 

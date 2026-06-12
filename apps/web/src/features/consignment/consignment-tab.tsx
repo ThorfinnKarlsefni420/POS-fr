@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiSupplier } from '@/lib/api';
-import { Loader2, Plus, Handshake, RefreshCw, Phone, Mail, Wallet, Package, Pencil, Trash2, DollarSign, CheckCircle2, ChevronDown, ChevronUp, CreditCard } from 'lucide-react';
+import { Loader2, Plus, Handshake, RefreshCw, Phone, Mail, Wallet, Package, Pencil, Trash2, DollarSign, CheckCircle2 } from 'lucide-react';
 import { SupplierModal } from './supplier-modal';
 import { ConsignmentSettlementDashboard } from './components/consignment-settlement-dashboard';
 
@@ -19,7 +19,6 @@ export function ConsignmentTab() {
   const qc = useQueryClient();
   const [supplierModal, setSupplierModal] = useState<{ open: boolean; editing?: ApiSupplier }>({ open: false });
   const [deletingId, setDeletingId]       = useState<string | null>(null);
-  const [settlingId, setSettlingId]       = useState<string | null>(null);
 
   // ── Queries ──
   const { data: suppliers = [], isLoading: suppLoading, refetch: refetchSupp } = useQuery({
@@ -50,18 +49,6 @@ export function ConsignmentTab() {
       alert(err instanceof Error ? err.message : "Could not delete supplier.");
     } finally {
       setDeletingId(null);
-    }
-  };
-
-  const handleSettle = async (supplierId: string, saleIds: string[]) => {
-    setSettlingId(supplierId);
-    try {
-      await api.consignment.settle(supplierId, saleIds);
-      invalidateAll();
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Settlement failed.");
-    } finally {
-      setSettlingId(null);
     }
   };
 
@@ -234,6 +221,14 @@ export function ConsignmentTab() {
           <ConsignmentSettlementDashboard />
         )}
       </div>
+
+      {supplierModal.open && (
+        <SupplierModal
+          supplier={supplierModal.editing}
+          onClose={() => setSupplierModal({ open: false })}
+          onSaved={() => { setSupplierModal({ open: false }); invalidateAll(); }}
+        />
+      )}
     </div>
   );
 }
