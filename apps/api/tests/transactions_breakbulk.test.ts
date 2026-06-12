@@ -3,17 +3,19 @@ import assert from 'node:assert/strict';
 import { prisma } from '../src/lib/prisma';
 
 async function setupBreakBulkData() {
-  const store = await prisma.store.create({ data: { name: 'Test Store', slug: `test-${Date.now()}` } });
+  const ts = Date.now();
+  const store = await prisma.store.create({ data: { name: 'Test Store', slug: `test-${ts}` } });
+  const itemBase = { costPrice: 10, nomadBitePrice: 10 };
   const parent = await prisma.item.create({
-    data: { name: 'Parent', currentStock: 10, category: 'A', storeId: store.id }
+    data: { ...itemBase, name: 'Parent', sku: `P-${ts}`, currentStock: 10, category: 'A', storeId: store.id }
   });
   const child = await prisma.item.create({
-    data: { name: 'Child', currentStock: 100, category: 'A', parentItemId: parent.id, boxQty: 10, storeId: store.id }
+    data: { ...itemBase, name: 'Child', sku: `C-${ts}-1`, currentStock: 100, category: 'A', parentItemId: parent.id, boxQty: '10', storeId: store.id }
   });
   const invalidChild = await prisma.item.create({
-    data: { name: 'InvalidChild', currentStock: 100, category: 'A', parentItemId: parent.id, boxQty: 0, storeId: store.id }
+    data: { ...itemBase, name: 'InvalidChild', sku: `C-${ts}-2`, currentStock: 100, category: 'A', parentItemId: parent.id, boxQty: '0', storeId: store.id }
   });
-  return { parent, child, invalidChild };
+  return { store, parent, child, invalidChild };
 }
 
 describe('Transactions Break-bulk Logic', () => {

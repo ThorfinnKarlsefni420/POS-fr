@@ -5,7 +5,7 @@ import { useImportProducts, useProducts } from '@/hooks/use-products';
 import { useSettingsStore } from '@/features/admin/store/use-settings-store';
 import { parseSpreadsheet, ParseResult } from '@/lib/file-parser';
 import { Product } from '@/types/pos';
-import { Upload, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Upload, AlertTriangle, CheckCircle, Download } from 'lucide-react';
 
 interface Props { open: boolean; onClose: () => void; }
 type Step = 'upload' | 'preview' | 'done';
@@ -185,9 +185,18 @@ export function CsvUploadDialog({ open, onClose }: Props) {
               </div>
             </label>
 
-            <div className="bg-muted rounded-xl p-4 text-xs text-muted-foreground space-y-1">
+            <div className="bg-muted rounded-xl p-4 text-xs text-muted-foreground space-y-2">
               <p className="font-semibold text-foreground text-sm">Flexible format</p>
               <p>Column names are matched automatically — any spreadsheet with an item name, category, and price column will work. NomadBite price is calculated from the service fee. Items already in the database are matched by SKU or name and will only be updated if prices or details changed.</p>
+              <a
+                href="/product-import-template.csv"
+                download="product-import-template.csv"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold mt-1"
+                style={{ color: 'var(--primary)' }}
+              >
+                <Download className="h-3.5 w-3.5" />
+                Download CSV template
+              </a>
             </div>
           </div>
         )}

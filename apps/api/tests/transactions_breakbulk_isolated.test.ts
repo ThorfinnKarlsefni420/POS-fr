@@ -57,6 +57,7 @@ describe('Transactions Break-bulk Isolated Tests', { concurrency: false }, () =>
     const { body: parent } = await req('/products', {
       method: 'POST',
       storeId,
+      userId: adminId,
       body: JSON.stringify({ name: 'Parent', sku: 'P-001', currentStock: 10, sellingPrice: 100 }),
     });
     const parentId = (parent as any).id;
@@ -65,6 +66,7 @@ describe('Transactions Break-bulk Isolated Tests', { concurrency: false }, () =>
     const { body: child } = await req('/products', {
       method: 'POST',
       storeId,
+      userId: adminId,
       body: JSON.stringify({ name: 'Child', sku: 'C-001', currentStock: 100, sellingPrice: 20, parentItemId: parentId, boxQty: 10 }),
     });
     const childId = (child as any).id;
@@ -73,6 +75,7 @@ describe('Transactions Break-bulk Isolated Tests', { concurrency: false }, () =>
     await req('/transactions', {
       method: 'POST',
       storeId,
+      userId: adminId,
       body: JSON.stringify({
         items: [{ id: childId, quantity: 20, originalPrice: 20, soldPrice: 20 }],
         totalAmount: 400,
@@ -93,6 +96,7 @@ describe('Transactions Break-bulk Isolated Tests', { concurrency: false }, () =>
     const { body: parent } = await req('/products', {
       method: 'POST',
       storeId,
+      userId: adminId,
       body: JSON.stringify({ name: 'Parent2', sku: 'P-002', currentStock: 10, sellingPrice: 100 }),
     });
     const parentId = (parent as any).id;
@@ -101,6 +105,7 @@ describe('Transactions Break-bulk Isolated Tests', { concurrency: false }, () =>
     const { body: invalidChild } = await req('/products', {
       method: 'POST',
       storeId,
+      userId: adminId,
       body: JSON.stringify({ name: 'InvalidChild', sku: 'C-002', currentStock: 100, sellingPrice: 20, parentItemId: parentId, boxQty: 0 }),
     });
     const childId = (invalidChild as any).id;
@@ -109,6 +114,7 @@ describe('Transactions Break-bulk Isolated Tests', { concurrency: false }, () =>
     await req('/transactions', {
       method: 'POST',
       storeId,
+      userId: adminId,
       body: JSON.stringify({
         items: [{ id: childId, quantity: 20, originalPrice: 20, soldPrice: 20 }],
         totalAmount: 400,

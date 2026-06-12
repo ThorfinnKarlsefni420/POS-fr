@@ -1,0 +1,6 @@
+DB Name,Category,Correct Product Name,Base Unit,Base Cost,Base Sell,Base Stock,Barcode,VAT %,L1 Pack Name,L1 Qty in Base,L1 Cost,L1 Sell,L2 Pack Name,L2 Qty in L1,L2 Cost,L2 Sell
+ARIEL 500G,Household - Detergents,Ariel Washing Powder 500g,Piece,120,150,200,5055789012345,0,Dozen,12,1380,1650,Carton,4,5400,6200
+BAHARI OIL 1LTR,Cooking Oil,Bahari Sunflower Oil 1L,Piece,170,200,50,6001234567890,16,Carton,12,1980,2250,,,,
+AJAB FLOUR 1KG,Staples - Flour & Ugali,Ajab Wheat Flour 1kg,KG,65,80,500,5000112233445,0,Bag,25,1560,1800,,,,
+BLUE BAND 500G,Dairy - Margarine,Blue Band Margarine 500g,Piece,160,190,100,6294003612620,0,Carton,24,3700,4200,,,,
+CERELAC 400G,Baby Care - Infant Formula,Nestle Cerelac 400g,Piece,400,450,30,6294002309960,0,Carton,12,4600,5000,,,,

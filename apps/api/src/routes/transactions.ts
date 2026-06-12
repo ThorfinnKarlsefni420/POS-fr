@@ -141,34 +141,49 @@ transactionsRouter.post('/', async (c) => {
   });
 
   // Consignment (Pay-on-Sell)
-  // Master switch: consignmentEnabled must be true. Items qualify only when their supplier
-  // has isConsignment=true. Supplier config always takes precedence over store defaults.
+  // Master switch: consignmentEnabled must be true. Per-item supplier takes precedence;
+  // if an item has no consignment supplier, the store's first consignment supplier is used
+  // as a fallback with the store-level consignmentRate (PERCENTAGE_COMMISSION).
   const settings = await getSettings(storeId);
   if (settings.consignmentEnabled) {
+    // Fetch store's default consignment supplier once — used as fallback for unlinked items
+    const defaultSupplier = await prisma.supplier.findFirst({
+      where: { storeId, isConsignment: true },
+      select: { id: true, defaultType: true, defaultRate: true },
+    });
+
     const consignmentSalesData = transaction.lineItems.flatMap((li) => {
       const itemRecord = stockMap.get(li.itemId);
-      if (!itemRecord?.supplier?.isConsignment) return [];
 
-      const supplier = itemRecord.supplier;
+      // Prefer item's own consignment supplier; fall back to store default
+      const itemSupplier = itemRecord?.supplier?.isConsignment ? itemRecord.supplier : null;
+      const supplier = itemSupplier ?? defaultSupplier;
+      if (!supplier) return [];
+
       const soldTotal = Number(li.soldPrice) * Number(li.quantity);
       let supplierAmount = 0;
       let superadminAmount = 0;
 
-      if (supplier.defaultType === 'FIXED_COST') {
-        supplierAmount = Number(itemRecord.costPrice) * Number(li.quantity);
+      // When falling back to store default, use store-level rate (PERCENTAGE_COMMISSION)
+      const settlementType = itemSupplier ? supplier.defaultType : 'PERCENTAGE_COMMISSION';
+      const settlementRate = itemSupplier
+        ? Number(supplier.defaultRate)
+        : Number(settings.consignmentRate ?? 0.9);
+
+      if (settlementType === 'FIXED_COST') {
+        supplierAmount = Number(itemRecord?.costPrice ?? 0) * Number(li.quantity);
         superadminAmount = soldTotal - supplierAmount;
-      } else if (supplier.defaultType === 'PERCENTAGE_COMMISSION') {
-        const rate = Number(supplier.defaultRate);
-        supplierAmount = soldTotal * rate;
-        superadminAmount = soldTotal * (1 - rate);
+      } else if (settlementType === 'PERCENTAGE_COMMISSION') {
+        supplierAmount = soldTotal * settlementRate;
+        superadminAmount = soldTotal * (1 - settlementRate);
       }
       // HYBRID: not yet implemented — no ConsignmentSale created
 
       return {
         lineItemId: li.id,
         supplierId: supplier.id,
-        settlementType: supplier.defaultType,
-        settlementRate: Number(supplier.defaultRate),
+        settlementType,
+        settlementRate,
         payoutAmount: supplierAmount,
         supplierAmount,
         superadminAmount,
