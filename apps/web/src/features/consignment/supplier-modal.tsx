@@ -14,7 +14,7 @@ export function SupplierModal({ supplier, onClose, onSaved }: SupplierModalProps
   const [phone, setPhone]             = useState(supplier?.phone ?? '');
   const [email, setEmail]             = useState(supplier?.email ?? '');
   const [isConsignment, setIsConsign]  = useState(supplier?.isConsignment ?? true);
-  const [defaultType, setDefaultType] = useState<'FIXED_COST' | 'PERCENTAGE_COMMISSION'>(supplier?.defaultType ?? 'FIXED_COST');
+  const [defaultType, setDefaultType] = useState<'PERCENTAGE_COMMISSION' | 'VENDOR_SELL_PRICE' | 'MARGIN_SPLIT'>(supplier?.defaultType ?? 'PERCENTAGE_COMMISSION');
   const [defaultRate, setDefaultRate] = useState(String(supplier?.defaultRate ?? '0'));
   const [saving, setSaving]           = useState(false);
   const [error, setError]             = useState('');
@@ -96,20 +96,19 @@ export function SupplierModal({ supplier, onClose, onSaved }: SupplierModalProps
         {isConsignment && (
           <>
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Pricing Model</label>
-              <div className="flex gap-2">
-                {[
-                  { value: 'FIXED_COST' as const, label: 'Fixed Cost', desc: 'Payout = cost price × qty' },
-                  { value: 'PERCENTAGE_COMMISSION' as const, label: 'Commission %', desc: 'Store keeps a % cut' },
-                ].map((opt) => (
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Payout Model</label>
+              <div className="flex flex-col gap-2">
+                {([
+                  { value: 'PERCENTAGE_COMMISSION', label: 'Commission %', desc: 'Supplier gets a % of the NomadBite sale price' },
+                  { value: 'VENDOR_SELL_PRICE',     label: 'Vendor Sell Price', desc: 'Supplier gets their own selling price per unit; NomadBite keeps the markup' },
+                  { value: 'MARGIN_SPLIT',          label: 'Margin Split', desc: 'Cost is guaranteed to supplier; profit above cost is split by rate' },
+                ] as const).map((opt) => (
                   <button
                     key={opt.value}
                     type="button"
                     onClick={() => setDefaultType(opt.value)}
-                    className={`flex-1 rounded-xl border-2 p-3 text-left transition-colors ${
-                      defaultType === opt.value
-                        ? 'border-emerald-400 bg-emerald-50'
-                        : 'border-gray-200 hover:border-gray-300'
+                    className={`rounded-xl border-2 p-3 text-left transition-colors ${
+                      defaultType === opt.value ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'
                     }`}
                   >
                     <p className="text-sm font-semibold">{opt.label}</p>
@@ -119,9 +118,11 @@ export function SupplierModal({ supplier, onClose, onSaved }: SupplierModalProps
               </div>
             </div>
 
-            {defaultType === 'PERCENTAGE_COMMISSION' && (
+            {(defaultType === 'PERCENTAGE_COMMISSION' || defaultType === 'MARGIN_SPLIT') && (
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Commission Rate (store's cut)</label>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  {defaultType === 'MARGIN_SPLIT' ? 'Supplier Profit Share (0–1)' : 'Commission Rate — store\'s cut (0–1)'}
+                </label>
                 <div className="relative">
                   <input
                     type="number"
@@ -138,7 +139,9 @@ export function SupplierModal({ supplier, onClose, onSaved }: SupplierModalProps
                   </span>
                 </div>
                 <p className="text-xs text-gray-400">
-                  0.10 = store keeps 10%, supplier gets 90% of sold price.
+                  {defaultType === 'MARGIN_SPLIT'
+                    ? '0.50 = supplier gets cost back + 50% of profit above cost.'
+                    : '0.10 = store keeps 10%, supplier gets 90% of sale price.'}
                 </p>
               </div>
             )}

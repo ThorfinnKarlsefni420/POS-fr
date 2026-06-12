@@ -371,7 +371,7 @@ export interface ApiSupplier {
   phone?: string | null;
   email?: string | null;
   isConsignment: boolean;
-  defaultType: 'FIXED_COST' | 'PERCENTAGE_COMMISSION';
+  defaultType: 'PERCENTAGE_COMMISSION' | 'VENDOR_SELL_PRICE' | 'MARGIN_SPLIT';
   defaultRate: number;
   createdAt: string;
 }

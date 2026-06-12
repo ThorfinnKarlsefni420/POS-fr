@@ -290,8 +290,8 @@ superadminRouter.post('/recalculate-prices', async (c) => {
 
   const result = await prisma.$executeRaw`
     UPDATE "Item"
-    SET "nomadBitePrice" = ROUND(CAST("costPrice" * (1 + ${markupPercent} / 100.0) AS NUMERIC), 2)
-    WHERE "costPrice" > 0
+    SET "nomadBitePrice" = ROUND(CAST("sellingPrice" * (1 + ${markupPercent} / 100.0) AS NUMERIC), 2)
+    WHERE "sellingPrice" > 0
   `;
 
   return c.json({ updated: result, markupPercent });

@@ -44,6 +44,7 @@ transactionsRouter.post('/', async (c) => {
       name: true,
       category: true,
       costPrice: true,
+      sellingPrice: true,
       currentStock: true,
       vatClassId: true,
       vatClass: { select: { id: true, code: true, rate: true, etimsCode: true } },
@@ -165,19 +166,25 @@ transactionsRouter.post('/', async (c) => {
       let superadminAmount = 0;
 
       // When falling back to store default, use store-level rate (PERCENTAGE_COMMISSION)
-      const settlementType = itemSupplier ? supplier.defaultType : 'PERCENTAGE_COMMISSION';
+      const settlementType = itemSupplier
+        ? (supplier.defaultType as 'PERCENTAGE_COMMISSION' | 'VENDOR_SELL_PRICE' | 'MARGIN_SPLIT')
+        : 'PERCENTAGE_COMMISSION';
       const settlementRate = itemSupplier
         ? Number(supplier.defaultRate)
         : Number(settings.consignmentRate ?? 0.9);
 
-      if (settlementType === 'FIXED_COST') {
-        supplierAmount = Number(itemRecord?.costPrice ?? 0) * Number(li.quantity);
+      if (settlementType === 'VENDOR_SELL_PRICE') {
+        supplierAmount = Number(itemRecord?.sellingPrice ?? 0) * Number(li.quantity);
         superadminAmount = soldTotal - supplierAmount;
-      } else if (settlementType === 'PERCENTAGE_COMMISSION') {
+      } else if (settlementType === 'MARGIN_SPLIT') {
+        const cost = Number(itemRecord?.costPrice ?? 0) * Number(li.quantity);
+        const profit = soldTotal - cost;
+        supplierAmount = cost + profit * settlementRate;
+        superadminAmount = profit * (1 - settlementRate);
+      } else {
         supplierAmount = soldTotal * settlementRate;
         superadminAmount = soldTotal * (1 - settlementRate);
       }
-      // HYBRID: not yet implemented — no ConsignmentSale created
 
       return {
         lineItemId: li.id,

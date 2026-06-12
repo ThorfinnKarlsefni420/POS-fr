@@ -48,7 +48,7 @@ usersRouter.post('/', async (c) => {
                 phone: `+254700${Math.floor(Math.random() * 900000)}`, // Random placeholder
                 email: `supplier.${Date.now()}@example.com`, // Random placeholder
                 isConsignment: true, // Default to consignment for vendors
-                defaultType: 'FIXED_COST',
+                defaultType: 'PERCENTAGE_COMMISSION',
                 defaultRate: 0,
             }
         });

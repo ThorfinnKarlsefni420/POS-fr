@@ -147,8 +147,10 @@ export function ConsignmentTab() {
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500">
                       {s.isConsignment
-                        ? s.defaultType === "FIXED_COST" ? "Fixed Cost" : "Commission %"
-                        : "—"
+                        ? s.defaultType === 'VENDOR_SELL_PRICE' ? 'Vendor Sell Price'
+                          : s.defaultType === 'MARGIN_SPLIT' ? 'Margin Split'
+                          : 'Commission %'
+                        : '—'
                       }
                     </td>
                     <td className="px-4 py-3 text-xs font-mono text-gray-500">

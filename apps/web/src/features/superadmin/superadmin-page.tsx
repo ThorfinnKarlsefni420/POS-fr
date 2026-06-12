@@ -660,8 +660,8 @@ function PricingTab() {
         </div>
         <p className="text-xs text-gray-500">
           This is the margin NomadBite earns on every product. <br />
-          <strong>NomadBite Price = Cost Price × (1 + Markup%)</strong><br />
-          Applies across all stores when you recalculate.
+          <strong>NomadBite Price = Vendor Selling Price × (1 + Markup%)</strong><br />
+          Applies across all stores when you recalculate. Vendor buying and selling prices are never modified.
         </p>
 
         {settingsLoading ? (
@@ -708,7 +708,7 @@ function PricingTab() {
         </p>
 
         <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-700 font-medium">
-          This overwrites all NomadBite prices. Cost prices are not affected. Make sure the markup above is saved first.
+          This overwrites NomadBite prices only — vendor buying and selling prices are not touched. Make sure the markup above is saved first.
         </div>
 
         <button
@@ -730,7 +730,7 @@ function PricingTab() {
           <p className="font-bold text-sm">Set Wholesale Selling Prices</p>
         </div>
         <p className="text-xs text-gray-500">
-          Calculates wholesale selling prices from cost price using a fixed markup.
+          Calculates wholesale selling prices from the vendor buying price using a fixed markup.
           Optionally rounds up to clean KES amounts — then run Recalculate to update NomadBite prices.
         </p>
 
@@ -784,7 +784,7 @@ function PricingTab() {
 
           {vendorMarkup && Number(vendorMarkup) >= 0 && (
             <div className="rounded-xl bg-gray-50 border border-gray-200 p-3 text-xs text-gray-600 font-mono">
-              Cost KES 100 → KES {
+              Buying KES 100 → KES {
                 roundTo > 0
                   ? Math.ceil(100 * (1 + Number(vendorMarkup) / 100) / roundTo) * roundTo
                   : Math.round(100 * (1 + Number(vendorMarkup) / 100) * 100) / 100

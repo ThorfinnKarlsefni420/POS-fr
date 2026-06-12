@@ -27,7 +27,7 @@ suppliersRouter.post('/', async (c) => {
     phone?: string;
     email?: string;
     isConsignment?: boolean;
-    defaultType?: 'FIXED_COST' | 'PERCENTAGE_COMMISSION';
+    defaultType?: 'PERCENTAGE_COMMISSION' | 'VENDOR_SELL_PRICE' | 'MARGIN_SPLIT';
     defaultRate?: number;
   }>();
 
@@ -40,7 +40,7 @@ suppliersRouter.post('/', async (c) => {
       phone: body.phone ?? null,
       email: body.email ?? null,
       isConsignment: body.isConsignment ?? false,
-      defaultType: body.defaultType ?? 'FIXED_COST',
+      defaultType: body.defaultType ?? 'PERCENTAGE_COMMISSION',
       defaultRate: body.defaultRate ?? 0,
     },
   });
@@ -56,7 +56,7 @@ suppliersRouter.patch('/:id', async (c) => {
     phone?: string;
     email?: string;
     isConsignment?: boolean;
-    defaultType?: 'FIXED_COST' | 'PERCENTAGE_COMMISSION';
+    defaultType?: 'PERCENTAGE_COMMISSION' | 'VENDOR_SELL_PRICE' | 'MARGIN_SPLIT';
     defaultRate?: number;
   }>();
 
