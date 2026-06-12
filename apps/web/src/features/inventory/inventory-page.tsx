@@ -6,12 +6,11 @@ import { LocalImageMatcher } from './components/local-image-matcher';
 import { VatConfirmDialog } from './components/vat-confirm-dialog';
 import { StockLocationsManager } from './components/stock-locations-manager';
 import { ReplenishmentPanel } from './components/replenishment-panel';
-import { IntegrationsManager } from './components/integrations-manager';
 import { PurchaseOrdersPanel } from './components/purchase-orders-panel';
 import { useExpiringProducts } from '@/hooks/use-expiring-products';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AlertTriangle, Upload, Plus, ImageUp, Download, Package, TrendingUp, ShieldCheck, DollarSign, Warehouse, Globe, Info, ClipboardList, CalendarX } from 'lucide-react';
+import { AlertTriangle, Upload, Plus, ImageUp, Download, Package, TrendingUp, ShieldCheck, DollarSign, Warehouse, Info, ClipboardList, CalendarX } from 'lucide-react';
 import { useProducts } from '@/hooks/use-products';
 import { useAuthStore } from '@/features/auth/store/use-auth-store';
 import { useProfitReport } from '@/features/reports/hooks/use-reports';
@@ -430,12 +429,6 @@ export function InventoryPage() {
             <TabsTrigger value="purchase-orders" className="flex items-center gap-1.5">
               <ClipboardList className="h-3.5 w-3.5" />
               Purchase Orders
-            </TabsTrigger>
-          )}
-          {isAdmin && (
-            <TabsTrigger value="integrations" className="flex items-center gap-1.5">
-              <Globe className="h-3.5 w-3.5" />
-              Integrations
             </TabsTrigger>
           )}
         </TabsList>
@@ -941,14 +934,6 @@ export function InventoryPage() {
           </TabsContent>
         )}
 
-        {/* Integrations tab */}
-        {isAdmin && (
-          <TabsContent value="integrations" className="overflow-auto pb-6">
-            <div className="pt-4">
-              <IntegrationsManager />
-            </div>
-          </TabsContent>
-        )}
       </Tabs>
 
       {isAdmin && <CsvUploadDialog open={csvOpen} onClose={() => setCsvOpen(false)} />}
