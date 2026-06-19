@@ -139,14 +139,14 @@ function classifyItem(itemId, rows, description) {
       }
     }
 
-    // Water rule: CTN/BAL at ratio=1 must be >= 5L
+    // Water rule: CTN/BAL at ratio=1 must be >= 5L to count as a single unit
     if (WATER_BULK_UOMS.has(uom) && name.includes('WATER')) {
       const litres = extractLitres(name);
       if (litres !== null && litres >= 5) {
         return { valid: true, rows, synthesised: false };
       }
-      // Under 5L or unknown size water → anomaly
-      return { valid: false, rows, reason: 'water-bulk-small' };
+      // Under 5L water carton — capacity is known but count per carton is not
+      // falls through to default ratio=30 below
     }
 
     // Try to infer ratio from name
@@ -173,11 +173,38 @@ function classifyItem(itemId, rows, description) {
       return { valid: true, rows: [pcsRow, updatedBulk, ...otherRows], synthesised: true, inferredRatio };
     }
 
-    // No ratio inferrable — anomaly
-    return { valid: false, rows, reason: 'no-ratio-inferrable' };
+    // No ratio inferrable from name — apply default: 1 pack = 30 PCS
+    const DEFAULT_RATIO = 30;
+    const DEFAULT_L2_QTY = 20; // outer carton/bale = 20 inner packs
+    const pcsRow = {
+      uom: 'PCS',
+      ratio: 1,
+      cost: bulkBaseRow.cost > 0 ? bulkBaseRow.cost / DEFAULT_RATIO : 0,
+      sell: bulkBaseRow.sell > 0 ? bulkBaseRow.sell / DEFAULT_RATIO : 0,
+      stock: bulkBaseRow.stock * DEFAULT_RATIO,
+      barcode: bulkBaseRow.barcode,
+      vat: bulkBaseRow.vat,
+    };
+    const updatedBulk = { ...bulkBaseRow, ratio: DEFAULT_RATIO };
+    // Promote any higher source tiers; scale ratios since they were relative to the old
+    // bulk base (ratio=1) but must now be relative to the new PCS base (1 PCS = 1/30 bulk)
+    const higherRows = rows
+      .filter(r => r !== bulkBaseRow && r.ratio > 1)
+      .map(r => ({ ...r, ratio: r.ratio * DEFAULT_RATIO }));
+    // If source had no second tier, synthesise an outer L2 (20 packs)
+    const l2Rows = higherRows.length > 0 ? higherRows : [{
+      uom: 'CTN',
+      ratio: DEFAULT_RATIO * DEFAULT_L2_QTY,
+      cost: bulkBaseRow.cost * DEFAULT_L2_QTY,
+      sell: bulkBaseRow.sell * DEFAULT_L2_QTY,
+      stock: 0,
+      barcode: bulkBaseRow.barcode,
+      vat: bulkBaseRow.vat,
+    }];
+    return { valid: true, rows: [pcsRow, updatedBulk, ...l2Rows], synthesised: true, defaulted: true };
   }
 
-  // No base row at all (all ratios > 1) — anomaly
+  // No base row at all (all ratios > 1, or ratio=0 data) — skip
   if (!baseRow) {
     return { valid: false, rows, reason: 'no-base-row' };
   }
@@ -245,6 +272,7 @@ const importRows = [OUTPUT_HEADER.join(',')];
 let totalImport = 0;
 let totalAnomaly = 0;
 let synthesised = 0;
+let defaulted = 0;
 let skipped = 0;
 
 for (const [itemId, { description, rows }] of groups) {
@@ -259,7 +287,8 @@ for (const [itemId, { description, rows }] of groups) {
     continue;
   }
 
-  if (result.synthesised) synthesised++;
+  if (result.synthesised && !result.defaulted) synthesised++;
+  if (result.defaulted) defaulted++;
 
   const validRows = result.rows;
   validRows.sort((a, b) => a.ratio - b.ratio);
@@ -300,5 +329,7 @@ for (const [itemId, { description, rows }] of groups) {
 writeFileSync(join(ROOT, 'realData-import.csv'), importRows.join('\n'), 'utf-8');
 
 console.log(`Done. ${totalImport} products written to realData-import.csv`);
-console.log(`Skipped: ${totalAnomaly} unclassifiable + ${skipped} blank-description`);
-console.log(`Synth:   ${synthesised} PCS base rows inferred from product name`);
+console.log(`  Name-inferred ratio: ${synthesised}`);
+console.log(`  Default ratio=30:    ${defaulted}`);
+console.log(`Skipped (anomaly): ${totalAnomaly} — no quantity/capacity data`);
+console.log(`Skipped (blank):   ${skipped}`);

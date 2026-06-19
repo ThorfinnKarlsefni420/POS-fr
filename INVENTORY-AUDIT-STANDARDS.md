@@ -99,13 +99,24 @@ When a ratio is successfully inferred:
 - A synthetic `PCS` base row is created with `cost = bulk_cost / inferred_ratio`
 - The bulk UOM row is promoted to L1 with `ratio = inferred_ratio`
 
-### Rule 5 — Unclassifiable (skipped)
+### Rule 5 — Default ratio (30 PCS per pack)
 
-If none of the four rules above resolve the base unit, the item is **omitted** from the import file. This covers:
+If no ratio can be inferred from the product name, a **default of 30** is applied: one bulk unit (CTN, BAL, OUT, etc.) is assumed to contain 30 PCS. This applies to all items where the count per pack is genuinely unknown — including water cartons under 5 L where only the bottle size is known.
 
-- Products with no size or count information in the name
-- Items where `UOM_RATIO = 0` (corrupt source data)
-- Items that only have packaging-level rows (all ratios > 1, no base row)
+When the default is applied:
+- A PCS base row is synthesised with `cost = bulk_cost ÷ 30`
+- The original bulk UOM becomes L1 with qty = 30
+- If the source data has a second bulk tier (e.g. BAL above OUT), that tier is scaled and becomes L2 with its ratio expressed relative to PCS (`original_ratio × 30`)
+- If the source data has only one bulk tier, a synthetic outer **CTN** L2 tier is created with qty = 20 (representing 20 inner packs per outer carton)
+
+### Rule 6 — Anomaly (skipped)
+
+An item is omitted from the import file **only when no quantity or capacity data exists at all**:
+
+- `UOM_RATIO = 0` for all rows (corrupt or missing source data)
+- All rows have ratio > 1 and no base-level row can be identified
+
+These items cannot be priced, stocked, or tiered in any meaningful way.
 
 ---
 
@@ -121,7 +132,7 @@ Has PCS (or non-bulk) row at ratio=1?
         │
         ▼
 Has BULK_UOM at ratio=1?
-  NO  → no base row at all ───────────────────────────────► Skip
+  NO  → UOM_RATIO = 0 or all rows > 1 ───────────────────► Skip (anomaly)
   YES
         │
         ▼
@@ -136,12 +147,18 @@ UOM = BAG and name encodes ≥ 10 kg?
 Name contains WATER and UOM in {CTN,BAL,OUT,HL,HLT}?
   YES → volume ≥ 5 L?
           YES → valid single unit ──────────────────────────► Import
-          NO  → water carton too small ──────────────────────► Skip
+          NO  → falls through to name inference below
         │
         ▼
 Infer ratio from product name (Formats 1, 2, Suffix)?
-  YES → synthesise PCS base row ──────────────────────────► Import
-  NO  → ratio unknown ────────────────────────────────────► Skip
+  YES → synthesise PCS base, update tier ratios ──────────► Import
+        │
+        ▼
+  NO  → apply DEFAULT ratio = 30
+        synthesise PCS base (cost ÷ 30)
+        L1 = original bulk UOM (qty 30)
+        L2 = source second tier (scaled) OR synthetic CTN (qty 20)
+                                                            ► Import
 ```
 
 ---
