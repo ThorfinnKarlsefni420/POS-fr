@@ -10,167 +10,92 @@ Each product in the source file can have multiple rows — one per unit of measu
 
 | Column | Meaning |
 |---|---|
-| Base Unit | The smallest sellable unit (e.g. PCS, KG, LTR) |
-| L1 Pack | First packaging tier (e.g. DOZ = 12 PCS) |
-| L2 Pack | Second packaging tier (e.g. CTN = 4 DOZ) |
+| Base Unit | The smallest sellable unit (PCS) |
+| L1 Pack | First packaging tier (e.g. OUT = 30 PCS) |
+| L2 Pack | Second packaging tier (e.g. CTN = 20 OUT) |
 
-Tiers are ordered by `UOM_RATIO` ascending. L2 Qty in L1 is computed as `floor(L2_ratio / L1_ratio)`.
+Tiers are ordered by `UOM_RATIO` ascending. L2 Qty in L1 is computed as `L2_ratio ÷ L1_ratio`.
 
 ---
 
 ## 2. Base Unit Classification
 
-The audit first determines whether the item has a valid, known base unit.
+### 2a. Explicit PCS base (kept as-is)
 
-### 2a. Explicit PCS base
+If any row for the item has `UOM_RATIO = 1` and the UOM is not a bulk packaging name (see §3), it is used as the base unit without modification. Examples: `PCS`, `KG`, `LTR`, `ML`.
 
-If any row for the item has `UOM_RATIO = 1` and the UOM is not a bulk packaging name (see §3), it is accepted as the base unit without further checks. Examples: `PCS`, `KG`, `LTR`, `ML`.
+### 2b. Bulk UOM at ratio 1 — synthesise PCS base
 
-### 2b. Bulk UOM at ratio 1 — requires classification
-
-The following UOM names are considered "bulk packaging" identifiers:
+The following UOM names are considered bulk packaging identifiers:
 
 ```
 CTN  OUT  BAL  DOZ  JRC  BAG  TM  HL  HLT
 ```
 
-When one of these appears with `UOM_RATIO = 1`, the system cannot assume it is the base unit without additional validation. The classification rules below apply in order.
+When one of these appears with `UOM_RATIO = 1`, a PCS base row is synthesised using the universal ratio rule (§3).
 
 ---
 
-## 3. Bulk UOM Classification Rules
+## 3. Universal Rule — 1 Bulk Pack = 30 PCS
 
-### Rule 1 — JRC (Jerry Can)
+Every bulk packaging unit is treated as containing **30 PCS**, regardless of product type, size, or any count that may be encoded in the product name. This ensures consistent pricing and stock tracking across all items.
 
-A `JRC` at ratio 1 is always accepted as a valid single unit regardless of size or product name. Jerry cans are counted individually in the NomadBite system.
+When this rule is applied:
 
-### Rule 2 — Large BAG (≥ 10 kg)
+- A `PCS` base row is synthesised:
+  - `Base Cost = bulk_cost ÷ 30`
+  - `Base Sell = bulk_sell ÷ 30`
+  - `Base Stock = source_stock × 30`
+- The original bulk UOM becomes **L1** with `Qty in Base = 30`
+- **L2 tier**:
+  - If the source data contains a second bulk tier above the base (e.g. BAL above OUT), it becomes L2 with its ratio scaled relative to PCS (`source_ratio × 30`), and `Qty in L1 = scaled_ratio ÷ 30`
+  - If only one bulk tier exists in source, a synthetic outer **CTN** is created as L2 with `Qty in L1 = 20` (20 inner packs per outer carton), `L2 Cost = L1_cost × 20`
 
-A `BAG` at ratio 1 is accepted as a valid single unit if the product name encodes a weight of **10 kg or more** (e.g. `PEMBE FLOUR 10KG BAG`). Bags with no parseable weight, or weight below 10 kg, are not auto-classified.
+| Example | PCS cost | L1 | L2 |
+|---|---|---|---|
+| `5 TEA 50G GINGER` OUT=1 (cost 350) | 11.67 | OUT qty=30 cost=350 | CTN qty=20 cost=7000 (synth) |
+| `WEETABIX 50*37G` CTN=1 (cost 860) | 28.67 | CTN qty=30 cost=860 | CTN qty=20 cost=17200 (synth) |
+| `BABY JOY NO 2` OUT=1 BAL=3 source | 28.80 | OUT qty=30 | BAL qty=3 (3×OUT = 90 PCS) |
 
-### Rule 3 — Water carton size check
+---
 
-If the product name contains `WATER` and the UOM is `CTN`, `BAL`, `OUT`, `HL`, or `HLT` at ratio 1, the item is only valid if the product name encodes a volume of **5 litres or more**.
+## 4. Anomaly (skipped)
 
-| Example | Result |
-|---|---|
-| `GLACIER WATER 5LTR CTN` | Valid single unit |
-| `DRIFT WATER 500ML CTN` | Skipped (under 5 L) |
-| `BLUE FALLS WATER 1.5LTR CTN` | Skipped (under 5 L) |
-
-### Rule 4 — Ratio inferred from product name
-
-When none of the above rules apply, the system attempts to extract the pack count from the product name. Three name formats are recognised:
-
-#### Format 1 — Count before `*`, measurement unit after second number
-
-The number before `*` is the pack count. Applies even when the count is embedded directly in the product name (no space required before it).
-
-```
-INDOMIE 20*120GMS       → 20 per carton
-DAIMA 18*500ML          → 18 per carton
-WEETABIX 50*37G         → 50 per carton
-KAYSALT30*200GR         → 30 per carton  (count embedded in brand name)
-KSL WHITE MINT 12*1KG   → 12 per carton
-```
-
-#### Format 2 — Size embedded before `*`, count after
-
-When an alphabetic character immediately precedes the first number (meaning the number is part of the product name, not a standalone count), the number **after** `*` is the pack count.
-
-```
-LISHA MILK500*12        → 12 per carton  ("500" is part of "MILK500")
-```
-
-The distinction from Format 1 is the absence of a measurement unit after the second number. If a unit is present, Format 1 takes precedence regardless of embedding.
-
-#### Suffix format — `*N` or `*Npcs` at end of name
-
-A trailing `*N` (optionally followed by `PCS`, `PK`, `PACK`, `UNITS`, `BAGS`) is treated as the pack count.
-
-```
-TOP CHIPS*24pcs         → 24 per carton
-PBISCO*24PCS            → 24 per carton
-CLUB GLUCOSE 72PK*4     → 4 per carton
-APC*125*100TAPLETS      → 125 per carton  ("*" before standalone "125")
-```
-
-When a ratio is successfully inferred:
-- A synthetic `PCS` base row is created with `cost = bulk_cost / inferred_ratio`
-- The bulk UOM row is promoted to L1 with `ratio = inferred_ratio`
-
-### Rule 5 — Default ratio (30 PCS per pack)
-
-If no ratio can be inferred from the product name, a **default of 30** is applied: one bulk unit (CTN, BAL, OUT, etc.) is assumed to contain 30 PCS. This applies to all items where the count per pack is genuinely unknown — including water cartons under 5 L where only the bottle size is known.
-
-When the default is applied:
-- A PCS base row is synthesised with `cost = bulk_cost ÷ 30`
-- The original bulk UOM becomes L1 with qty = 30
-- If the source data has a second bulk tier (e.g. BAL above OUT), that tier is scaled and becomes L2 with its ratio expressed relative to PCS (`original_ratio × 30`)
-- If the source data has only one bulk tier, a synthetic outer **CTN** L2 tier is created with qty = 20 (representing 20 inner packs per outer carton)
-
-### Rule 6 — Anomaly (skipped)
-
-An item is omitted from the import file **only when no quantity or capacity data exists at all**:
+An item is omitted from the import file only when **no base row can be identified at all**:
 
 - `UOM_RATIO = 0` for all rows (corrupt or missing source data)
-- All rows have ratio > 1 and no base-level row can be identified
+- All rows have ratio > 1 with no base-level row present
 
-These items cannot be priced, stocked, or tiered in any meaningful way.
+These items have no usable cost, price, or ratio and cannot be priced or tiered.
 
 ---
 
-## 4. Summary of Decision Flow
+## 5. Summary of Decision Flow
 
 ```
 Item rows grouped by ITEM_ID
         │
         ▼
-Has PCS (or non-bulk) row at ratio=1?
-  YES → use as base ──────────────────────────────────────► Import
+Has non-bulk row at ratio=1 (PCS/KG/LTR)?
+  YES → use as base, keep tiers as-is ────────────────────► Import
   NO
         │
         ▼
 Has BULK_UOM at ratio=1?
-  NO  → UOM_RATIO = 0 or all rows > 1 ───────────────────► Skip (anomaly)
+  NO  → ratio=0 or all rows > 1 ─────────────────────────► Skip (anomaly)
   YES
         │
         ▼
-UOM = JRC?
-  YES → valid single unit ────────────────────────────────► Import
-        │
-        ▼
-UOM = BAG and name encodes ≥ 10 kg?
-  YES → valid single unit ────────────────────────────────► Import
-        │
-        ▼
-Name contains WATER and UOM in {CTN,BAL,OUT,HL,HLT}?
-  YES → volume ≥ 5 L?
-          YES → valid single unit ──────────────────────────► Import
-          NO  → falls through to name inference below
-        │
-        ▼
-Infer ratio from product name (Formats 1, 2, Suffix)?
-  YES → synthesise PCS base, update tier ratios ──────────► Import
-        │
-        ▼
-  NO  → apply DEFAULT ratio = 30
-        synthesise PCS base (cost ÷ 30)
-        L1 = original bulk UOM (qty 30)
-        L2 = source second tier (scaled) OR synthetic CTN (qty 20)
-                                                            ► Import
+Apply universal rule: 1 bulk pack = 30 PCS
+  Synthesise PCS base (cost ÷ 30)
+  L1 = original bulk UOM (qty 30)
+  L2 = source second tier (ratio × 30) OR synthetic CTN (qty 20)
+                                                          ► Import
 ```
-
----
-
-## 5. BULK_UOM Normalisation
-
-Any bulk packaging UOM (`CTN`, `OUT`, `BAL`, etc.) that ends up as the **base row** (ratio = 1) after passing all classification rules is renamed to `PCS` in the output. This applies to JRC and large-BAG items that are valid single units.
 
 ---
 
 ## 6. Source
 
 - Conversion script: `scripts/convert-realdata.mjs`
-- Ratio inference function: `apps/api/src/scripts/parse-lungalunga.ts` → `inferRatioFromName()`
 - Test coverage: `apps/api/tests/inventory-data.test.ts`
