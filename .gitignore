@@ -5,7 +5,8 @@ dist
 .env.production
 *.env
 
-# Ignore all markdown files except README.md
+# Ignore all markdown files except README.md and audit/standards docs
 *.md
 !README.md
+!INVENTORY-AUDIT-STANDARDS.md
 .aider*
