@@ -239,12 +239,8 @@ const OUTPUT_HEADER = [
   'L2 Pack Name', 'L2 Qty in L1', 'L2 Cost', 'L2 Sell',
 ];
 
-const ANOMALY_HEADER = [
-  'DB Name', 'Correct Product Name', 'UOMs', 'Ratios', 'Reason',
-];
 
 const importRows = [OUTPUT_HEADER.join(',')];
-const anomalyRows = [ANOMALY_HEADER.join(',')];
 
 let totalImport = 0;
 let totalAnomaly = 0;
@@ -259,10 +255,6 @@ for (const [itemId, { description, rows }] of groups) {
   const result = classifyItem(itemId, rows, description);
 
   if (!result.valid) {
-    const uoms = rows.map(r => r.uom).join('|');
-    const ratios = rows.map(r => r.ratio).join('|');
-    const anomalyCols = [itemId, description, uoms, ratios, result.reason ?? ''];
-    anomalyRows.push(anomalyCols.map(csvCell).join(','));
     totalAnomaly++;
     continue;
   }
@@ -305,13 +297,8 @@ for (const [itemId, { description, rows }] of groups) {
   totalImport++;
 }
 
-const importPath = join(ROOT, 'realData-import.csv');
-const anomalyPath = join(ROOT, 'realData-anomalies.csv');
+writeFileSync(join(ROOT, 'realData-import.csv'), importRows.join('\n'), 'utf-8');
 
-writeFileSync(importPath, importRows.join('\n'), 'utf-8');
-writeFileSync(anomalyPath, anomalyRows.join('\n'), 'utf-8');
-
-console.log(`Import:   ${totalImport} products → realData-import.csv`);
-console.log(`Anomaly:  ${totalAnomaly} products → realData-anomalies.csv`);
-console.log(`Synth:    ${synthesised} base rows synthesised from name-inferred ratio`);
-console.log(`Skipped:  ${skipped} rows with blank description`);
+console.log(`Done. ${totalImport} products written to realData-import.csv`);
+console.log(`Skipped: ${totalAnomaly} unclassifiable + ${skipped} blank-description`);
+console.log(`Synth:   ${synthesised} PCS base rows inferred from product name`);
