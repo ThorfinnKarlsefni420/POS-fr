@@ -1,4 +1,5 @@
 import { parseLungaLunga, inferRatioFromName } from '../src/scripts/parse-lungalunga.ts';
+import { classifyItem, normaliseUom, DEFAULT_RATIO, DEFAULT_L2_QTY, BULK_UOMS, type ClassifyRow } from '../src/scripts/classify-inventory.ts';
 import { writeFileSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -152,5 +153,184 @@ test('Inventory Data: inferRatioFromName — no ratio (should return null)', asy
 
   await t.test('ratio of 1 is not returned (meaningless)', () => {
     assert.strictEqual(inferRatioFromName('SOME ITEM 1*500G'), null);
+  });
+});
+
+// ── classifyItem tests ────────────────────────────────────────────────────────
+// Dependency map: classifyItem ← BULK_UOMS, DEFAULT_RATIO (30), DEFAULT_L2_QTY (20)
+// Upstream: conversion script groups rows by ITEM_ID and passes them here
+// Downstream: output rows written to realData-import.csv
+// Existing coverage: none — classifyItem had no tests before this module was created
+// Why each test is necessary: each branch of classifyItem has distinct output shape
+
+function row(overrides: Partial<ClassifyRow> = {}): ClassifyRow {
+  return { uom: 'CTN', ratio: 1, cost: 300, sell: 360, stock: 5, barcode: '123', vat: 0, ...overrides };
+}
+
+test('classifyItem — explicit non-bulk base kept as-is', async (t) => {
+  // Gap: truePcsRow branch was never tested
+  await t.test('PCS+CTN source: PCS stays base, CTN ratio unchanged', () => {
+    const rows = [row({ uom: 'PCS', ratio: 1, cost: 10, sell: 12 }), row({ uom: 'CTN', ratio: 48, cost: 480, sell: 576 })];
+    const result = classifyItem(rows);
+    assert.strictEqual(result.valid, true);
+    assert.strictEqual(result.defaulted, false);
+    const base = result.rows.find(r => r.ratio === 1);
+    assert.strictEqual(base?.uom, 'PCS');
+    const ctn = result.rows.find(r => r.uom === 'CTN');
+    assert.strictEqual(ctn?.ratio, 48, 'source ratio must not be overridden');
+  });
+
+  await t.test('KG base is also treated as explicit non-bulk', () => {
+    const rows = [row({ uom: 'KG', ratio: 1, cost: 50, sell: 60 })];
+    const result = classifyItem(rows);
+    assert.strictEqual(result.valid, true);
+    assert.strictEqual(result.defaulted, false);
+    assert.strictEqual(result.rows[0].uom, 'KG');
+  });
+});
+
+test('classifyItem — bulk UOM at ratio=1, single source tier → synthetic L2', async (t) => {
+  // Gap: bulk-at-1 branch, single-tier path (synthetic CTN L2 added)
+  await t.test('CTN=1 synthesises PCS base at ratio=30 with synthetic L2', () => {
+    const result = classifyItem([row({ uom: 'CTN', ratio: 1, cost: 300, sell: 360, stock: 2 })]);
+    assert.strictEqual(result.valid, true);
+    assert.strictEqual(result.defaulted, true);
+
+    const sorted = [...result.rows].sort((a, b) => a.ratio - b.ratio);
+    const [pcs, l1, l2] = sorted;
+
+    assert.strictEqual(pcs.uom, 'PCS');
+    assert.strictEqual(pcs.ratio, 1);
+    assert.strictEqual(pcs.cost, 300 / DEFAULT_RATIO);          // 10
+    assert.strictEqual(pcs.stock, 2 * DEFAULT_RATIO);           // 60
+
+    assert.strictEqual(l1.uom, 'CTN');
+    assert.strictEqual(l1.ratio, DEFAULT_RATIO);                // 30
+    assert.strictEqual(l1.cost, 300);
+
+    assert.strictEqual(l2.uom, 'CTN');
+    assert.strictEqual(l2.ratio, DEFAULT_RATIO * DEFAULT_L2_QTY); // 600
+    assert.strictEqual(l2.cost, 300 * DEFAULT_L2_QTY);          // 6000
+  });
+
+  await t.test('OUT=1 uses OUT as L1', () => {
+    const result = classifyItem([row({ uom: 'OUT', ratio: 1, cost: 350, sell: 400 })]);
+    const l1 = result.rows.find(r => r.ratio === DEFAULT_RATIO);
+    assert.strictEqual(l1?.uom, 'OUT');
+  });
+});
+
+test('classifyItem — bulk UOM at ratio=1 with existing second source tier → L2 scaled', async (t) => {
+  // Gap: higher-tier scaling path (source has 2 tiers; L2 gets ratio×30)
+  await t.test('OUT=1 BAL=3: L2 ratio becomes 3×30=90, L2 qty-in-L1 = 3', () => {
+    const rows = [
+      row({ uom: 'OUT', ratio: 1, cost: 864, sell: 900 }),
+      row({ uom: 'BAL', ratio: 3, cost: 2592, sell: 2700 }),
+    ];
+    const result = classifyItem(rows);
+    const sorted = [...result.rows].sort((a, b) => a.ratio - b.ratio);
+    const [pcs, l1, l2] = sorted;
+
+    assert.strictEqual(pcs.ratio, 1);
+    assert.strictEqual(l1.uom, 'OUT');
+    assert.strictEqual(l1.ratio, 30);
+    assert.strictEqual(l2.uom, 'BAL');
+    assert.strictEqual(l2.ratio, 3 * 30);  // 90 PCS per BAL
+    // L2 Qty in L1 used in output = round(90/30) = 3
+    assert.strictEqual(Math.round(l2.ratio / l1.ratio), 3);
+  });
+});
+
+test('classifyItem — PCS at ratio=0 fixed to ratio=1 (corrupt source data)', async (t) => {
+  // Gap: ratio=0 fix path — 61 real items have this pattern
+  await t.test('PCS ratio=0 treated as ratio=1, no synthesis', () => {
+    const result = classifyItem([row({ uom: 'PCS', ratio: 0, cost: 50, sell: 60 })]);
+    assert.strictEqual(result.valid, true);
+    assert.strictEqual(result.defaulted, false);
+    const base = result.rows.find(r => r.uom === 'PCS');
+    assert.strictEqual(base?.ratio, 1, 'ratio=0 must be corrected to 1');
+  });
+
+  await t.test('two duplicate PCS ratio=0 rows both fixed; item is valid', () => {
+    const r1 = row({ uom: 'PCS', ratio: 0, cost: 50, sell: 60 });
+    const r2 = row({ uom: 'PCS', ratio: 0, cost: 50, sell: 60 });
+    const result = classifyItem([r1, r2]);
+    assert.strictEqual(result.valid, true);
+    assert.strictEqual(result.defaulted, false);
+    assert.ok(result.rows.every(r => r.ratio === 1), 'all fixed rows must have ratio=1');
+  });
+
+  await t.test('bulk UOM ratio=0 is NOT fixed (only non-bulk rows get the fix)', () => {
+    // CTN at ratio=0 is not a PCS-style corrupt row — treated as "no base" → synthesise
+    const result = classifyItem([row({ uom: 'CTN', ratio: 0 })]);
+    // CTN ratio=0 stays 0; no truePcsRow; sourceRow=CTN(0); falls through to synthesis
+    // pcsRow cost = 0 (sourceRow.cost/30 since cost>0 guard); still valid
+    assert.strictEqual(result.valid, true);
+    assert.strictEqual(result.defaulted, true);
+  });
+});
+
+test('classifyItem — all rows ratio>1 (no base row): synthesise from smallest', async (t) => {
+  // Gap: fallback path — 10 real items have all-ratio>1 (AFRIN NOODLES CTN=10, etc.)
+  await t.test('CTN=10 only: pick CTN as source, synthesise PCS at ratio=30', () => {
+    const ctn = row({ uom: 'CTN', ratio: 10, cost: 300, sell: 360 });
+    const result = classifyItem([ctn]);
+    assert.strictEqual(result.valid, true);
+    assert.strictEqual(result.defaulted, true);
+
+    const sorted = [...result.rows].sort((a, b) => a.ratio - b.ratio);
+    const [pcs, l1] = sorted;
+    assert.strictEqual(pcs.uom, 'PCS');
+    assert.strictEqual(pcs.ratio, 1);
+    assert.strictEqual(pcs.cost, 300 / DEFAULT_RATIO);
+    assert.strictEqual(l1.uom, 'CTN');
+    assert.strictEqual(l1.ratio, DEFAULT_RATIO);  // overrides the original 10
+  });
+
+  await t.test('CTN=20 KG=2: pick KG (smaller ratio) as source; CTN scaled proportionally', () => {
+    const rows = [
+      row({ uom: 'CTN', ratio: 20, cost: 2000, sell: 2200 }),
+      row({ uom: 'KG',  ratio: 2,  cost: 200,  sell: 220  }),
+    ];
+    const result = classifyItem(rows);
+    const sorted = [...result.rows].sort((a, b) => a.ratio - b.ratio);
+    const [pcs, l1, l2] = sorted;
+
+    assert.strictEqual(pcs.ratio, 1);
+    assert.strictEqual(l1.uom, 'KG');
+    assert.strictEqual(l1.ratio, DEFAULT_RATIO);             // KG promoted to L1 at 30
+    // CTN: (20/2) * 30 = 300
+    assert.strictEqual(l2.uom, 'CTN');
+    assert.strictEqual(l2.ratio, Math.round((20 / 2) * DEFAULT_RATIO));  // 300
+    assert.strictEqual(Math.round(l2.ratio / l1.ratio), 10);  // 10 KG per CTN
+  });
+});
+
+test('classifyItem — empty input returns invalid', async (t) => {
+  // Gap: guard clause for no rows
+  await t.test('empty rows array → valid=false', () => {
+    const result = classifyItem([]);
+    assert.strictEqual(result.valid, false);
+    assert.strictEqual(result.reason, 'no-rows');
+  });
+});
+
+test('normaliseUom — bulk UOM at ratio=1 renamed to PCS', async (t) => {
+  // Gap: normaliseUom used in output stage; no prior test
+  await t.test('bulk UOMs at ratio=1 become PCS', () => {
+    for (const uom of BULK_UOMS) {
+      assert.strictEqual(normaliseUom(uom, 1), 'PCS', `${uom} at ratio=1 should be PCS`);
+    }
+  });
+
+  await t.test('bulk UOMs at ratio>1 are kept', () => {
+    assert.strictEqual(normaliseUom('CTN', 30), 'CTN');
+    assert.strictEqual(normaliseUom('OUT', 48), 'OUT');
+  });
+
+  await t.test('non-bulk UOMs pass through unchanged', () => {
+    assert.strictEqual(normaliseUom('PCS', 1), 'PCS');
+    assert.strictEqual(normaliseUom('KG', 1), 'KG');
+    assert.strictEqual(normaliseUom('LTR', 1), 'LTR');
   });
 });

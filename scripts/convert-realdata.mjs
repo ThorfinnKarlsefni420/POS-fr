@@ -41,55 +41,74 @@ function csvCell(v) {
 
 
 // ── Classification logic ─────────────────────────────────────────────────────
-// Universal rule: every item uses ratio=30 (1 bulk pack = 30 PCS).
-// Items that already have an explicit non-bulk base (PCS/KG/LTR at ratio=1)
-// are kept as-is. Items with no base row at all (ratio=0 / corrupt) are skipped.
+// Mirrors apps/api/src/scripts/classify-inventory.ts — keep in sync.
+//
+// Universal rule: every bulk pack = 30 PCS.
+// Resolution order:
+//  1. Fix non-bulk rows with ratio=0 (corrupt) → treat as ratio=1
+//  2. Explicit non-bulk base (PCS/KG/LTR at ratio=1) → keep as-is
+//  3. Bulk UOM at ratio=1 → synthesise PCS at ratio=30
+//  4. All rows ratio>1 (no base) → synthesise PCS from smallest row at ratio=30
+//  5. No rows → skip
 
 const DEFAULT_RATIO = 30;   // pieces per inner pack
 const DEFAULT_L2_QTY = 20;  // inner packs per outer carton
 
-function classifyItem(itemId, rows) {
-  rows.sort((a, b) => a.ratio - b.ratio);
+function classifyItem(rows) {
+  if (rows.length === 0) return { valid: false, rows, reason: 'no-rows' };
 
-  const truePcsRow  = rows.find(r => r.ratio === 1 && !BULK_UOMS.has(r.uom.toUpperCase()));
-  const bulkBaseRow = rows.find(r => r.ratio === 1 &&  BULK_UOMS.has(r.uom.toUpperCase()));
+  // Step 1: fix non-bulk rows where ratio=0 → should be base units at ratio=1
+  const fixed = rows.map(r =>
+    r.ratio === 0 && !BULK_UOMS.has(r.uom.trim().toUpperCase())
+      ? { ...r, ratio: 1 }
+      : r
+  );
+  fixed.sort((a, b) => a.ratio - b.ratio);
 
-  // Item already has an explicit non-bulk base unit (PCS, KG, LTR, etc.) — keep as-is
+  const truePcsRow  = fixed.find(r => r.ratio === 1 && !BULK_UOMS.has(r.uom.trim().toUpperCase()));
+  const bulkBaseRow = fixed.find(r => r.ratio === 1 &&  BULK_UOMS.has(r.uom.trim().toUpperCase()));
+
+  // Step 2: explicit non-bulk base — keep all source tiers unchanged
   if (truePcsRow) {
-    return { valid: true, rows, defaulted: false };
+    return { valid: true, rows: fixed, defaulted: false };
   }
 
-  // Item has a bulk UOM at ratio=1 — synthesise PCS base using DEFAULT_RATIO=30
-  if (bulkBaseRow) {
-    const pcsRow = {
-      uom: 'PCS',
-      ratio: 1,
-      cost: bulkBaseRow.cost > 0 ? bulkBaseRow.cost / DEFAULT_RATIO : 0,
-      sell: bulkBaseRow.sell > 0 ? bulkBaseRow.sell / DEFAULT_RATIO : 0,
-      stock: bulkBaseRow.stock * DEFAULT_RATIO,
-      barcode: bulkBaseRow.barcode,
-      vat: bulkBaseRow.vat,
-    };
-    const l1Row = { ...bulkBaseRow, ratio: DEFAULT_RATIO };
-    // Any higher source tiers: scale their ratios relative to the new PCS base
-    const higherRows = rows
-      .filter(r => r !== bulkBaseRow && r.ratio > 1)
-      .map(r => ({ ...r, ratio: r.ratio * DEFAULT_RATIO }));
-    // If no second source tier exists, add a synthetic outer carton (20 inner packs)
-    const l2Rows = higherRows.length > 0 ? higherRows : [{
-      uom: 'CTN',
-      ratio: DEFAULT_RATIO * DEFAULT_L2_QTY,
-      cost: bulkBaseRow.cost * DEFAULT_L2_QTY,
-      sell: bulkBaseRow.sell * DEFAULT_L2_QTY,
-      stock: 0,
-      barcode: bulkBaseRow.barcode,
-      vat: bulkBaseRow.vat,
-    }];
-    return { valid: true, rows: [pcsRow, l1Row, ...l2Rows], defaulted: true };
-  }
+  // Source row to synthesise PCS from: bulk-at-1 or (fallback) smallest-ratio row
+  const sourceRow = bulkBaseRow ?? fixed[0];
 
-  // No usable base row (all ratios > 1, or ratio=0 corrupt data) — skip
-  return { valid: false, rows, reason: 'no-base-row' };
+  // Step 3/4: synthesise PCS base at ratio=30
+  const pcsRow = {
+    uom: 'PCS',
+    ratio: 1,
+    cost: sourceRow.cost > 0 ? sourceRow.cost / DEFAULT_RATIO : 0,
+    sell: sourceRow.sell > 0 ? sourceRow.sell / DEFAULT_RATIO : 0,
+    stock: sourceRow.stock * DEFAULT_RATIO,
+    barcode: sourceRow.barcode,
+    vat: sourceRow.vat,
+  };
+  const l1Row = { ...sourceRow, ratio: DEFAULT_RATIO };
+
+  // Higher tiers: scale so ratios are relative to the new PCS base
+  const higherRows = fixed
+    .filter(r => r !== sourceRow)
+    .map(r => ({
+      ...r,
+      ratio: sourceRow.ratio === 1
+        ? r.ratio * DEFAULT_RATIO
+        : Math.round((r.ratio / sourceRow.ratio) * DEFAULT_RATIO),
+    }));
+
+  const l2Rows = higherRows.length > 0 ? higherRows : [{
+    uom: 'CTN',
+    ratio: DEFAULT_RATIO * DEFAULT_L2_QTY,
+    cost: sourceRow.cost * DEFAULT_L2_QTY,
+    sell: sourceRow.sell * DEFAULT_L2_QTY,
+    stock: 0,
+    barcode: sourceRow.barcode,
+    vat: sourceRow.vat,
+  }];
+
+  return { valid: true, rows: [pcsRow, l1Row, ...l2Rows], defaulted: true };
 }
 
 // ── Parse TSV ────────────────────────────────────────────────────────────────
@@ -158,7 +177,7 @@ for (const [itemId, { description, rows }] of groups) {
 
   rows.sort((a, b) => a.ratio - b.ratio);
 
-  const result = classifyItem(itemId, rows);
+  const result = classifyItem(rows);
 
   if (!result.valid) {
     totalAnomaly++;
