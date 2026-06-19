@@ -12,7 +12,7 @@
  * Output: DB Name | Category | Correct Product Name | Base Unit | Base Cost | Base Sell | Base Stock | Barcode | VAT % | L1 Pack Name | L1 Qty in Base | L1 Cost | L1 Sell | L2 Pack Name | L2 Qty in L1 | L2 Cost | L2 Sell
  */
 
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -39,6 +39,36 @@ function csvCell(v) {
   return s;
 }
 
+
+// ── Name anomaly detection ────────────────────────────────────────────────────
+// Mirrors apps/api/src/scripts/classify-inventory.ts detectNameAnomalies()
+
+function detectNameAnomalies(description) {
+  const up = description.trim().toUpperCase();
+
+  if (/^(TEST|DUMMY|SAMPLE|N\/A)\b/.test(up))
+    return { reason: 'placeholder', notes: `Name "${description}" is a test or placeholder entry` };
+
+  if (/[A-Z0-9]+\/[A-Z0-9]+/.test(up))
+    return { reason: 'slash-variant', notes: `Name "${description}" lists multiple variants (slash-separated); create separate SKUs per variant` };
+
+  const SIZE_UNIT = /\d+(?:\.\d+)?\s*(?:ML|L\b|LTR|G\b|GMS|GRM|KG)/i;
+  if (/\b(ASSORTED|MIX)\b/i.test(up) && !SIZE_UNIT.test(up))
+    return { reason: 'assorted-no-size', notes: `Name "${description}" is an assorted/mix product with no defined size — individual unit quantity unknown` };
+
+  const sizeMatches = [...up.matchAll(/(\d+(?:\.\d+)?)\s*(ML|L\b|LTR|G\b|GMS|GRM|KG)/g)];
+  const normalisedSizes = new Set(sizeMatches.map(m => {
+    const val = parseFloat(m[1]);
+    const unit = m[2].replace(/\s/g, '');
+    if (unit === 'L' || unit === 'LTR') return `${val * 1000}ml`;
+    if (unit === 'KG') return `${val * 1000}g`;
+    return `${val}${unit.toLowerCase()}`;
+  }));
+  if (normalisedSizes.size >= 2)
+    return { reason: 'multi-size', notes: `Name "${description}" contains ${normalisedSizes.size} different size specifications — unclear which size this record represents` };
+
+  return null;
+}
 
 // ── Classification logic ─────────────────────────────────────────────────────
 // Mirrors apps/api/src/scripts/classify-inventory.ts — keep in sync.
@@ -165,22 +195,33 @@ const OUTPUT_HEADER = [
 ];
 
 
+const ANOMALY_HEADER = ['Source ID', 'Name', 'Reason', 'Notes'];
+
 const importRows = [OUTPUT_HEADER.join(',')];
+const anomalyRows = [ANOMALY_HEADER.join(',')];
 
 let totalImport = 0;
-let totalAnomaly = 0;
+let totalStructuralAnomaly = 0;
+let totalNameAnomaly = 0;
 let defaulted = 0;
 let skipped = 0;
 
 for (const [itemId, { description, rows }] of groups) {
   if (!description) { skipped++; continue; }
 
+  // Check name-based anomalies first — still include in import CSV but flag separately
+  const nameAnomaly = detectNameAnomalies(description);
+  if (nameAnomaly) {
+    anomalyRows.push([itemId, description, nameAnomaly.reason, nameAnomaly.notes].map(csvCell).join(','));
+    totalNameAnomaly++;
+  }
+
   rows.sort((a, b) => a.ratio - b.ratio);
 
   const result = classifyItem(rows);
 
   if (!result.valid) {
-    totalAnomaly++;
+    totalStructuralAnomaly++;
     continue;
   }
 
@@ -224,7 +265,17 @@ for (const [itemId, { description, rows }] of groups) {
 
 writeFileSync(join(ROOT, 'realData-import.csv'), importRows.join('\n'), 'utf-8');
 
+const anomalyPath = join(ROOT, 'realData-anomalies.csv');
+if (anomalyRows.length > 1) {
+  writeFileSync(anomalyPath, anomalyRows.join('\n'), 'utf-8');
+  console.log(`${totalNameAnomaly} name anomalies written to realData-anomalies.csv`);
+} else {
+  if (existsSync(anomalyPath)) unlinkSync(anomalyPath);
+  console.log('No name anomalies detected.');
+}
+
 console.log(`Done. ${totalImport} products written to realData-import.csv`);
 console.log(`  With explicit PCS base: ${totalImport - defaulted}`);
 console.log(`  Synthesised at ratio=30: ${defaulted}`);
-console.log(`Skipped: ${totalAnomaly} (no base row / corrupt ratio) + ${skipped} (blank name)`);
+if (totalStructuralAnomaly > 0) console.log(`Skipped: ${totalStructuralAnomaly} (no base row / corrupt ratio)`);
+if (skipped > 0) console.log(`Skipped: ${skipped} (blank name)`);

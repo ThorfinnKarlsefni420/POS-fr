@@ -1,5 +1,5 @@
 import { parseLungaLunga, inferRatioFromName } from '../src/scripts/parse-lungalunga.ts';
-import { classifyItem, normaliseUom, DEFAULT_RATIO, DEFAULT_L2_QTY, BULK_UOMS, type ClassifyRow } from '../src/scripts/classify-inventory.ts';
+import { classifyItem, normaliseUom, detectNameAnomalies, DEFAULT_RATIO, DEFAULT_L2_QTY, BULK_UOMS, type ClassifyRow } from '../src/scripts/classify-inventory.ts';
 import { writeFileSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -332,5 +332,100 @@ test('normaliseUom — bulk UOM at ratio=1 renamed to PCS', async (t) => {
     assert.strictEqual(normaliseUom('PCS', 1), 'PCS');
     assert.strictEqual(normaliseUom('KG', 1), 'KG');
     assert.strictEqual(normaliseUom('LTR', 1), 'LTR');
+  });
+});
+
+// ── detectNameAnomalies tests ─────────────────────────────────────────────────
+
+test('detectNameAnomalies — placeholder names flagged', async (t) => {
+  await t.test('TEST prefix', () => {
+    const result = detectNameAnomalies('TEST ITEM');
+    assert.ok(result, 'should detect anomaly');
+    assert.strictEqual(result?.reason, 'placeholder');
+  });
+
+  await t.test('DUMMY prefix', () => {
+    const result = detectNameAnomalies('DUMMY PRODUCT 500ML');
+    assert.ok(result);
+    assert.strictEqual(result?.reason, 'placeholder');
+  });
+
+  await t.test('SAMPLE prefix', () => {
+    const result = detectNameAnomalies('SAMPLE JUICE 1L');
+    assert.ok(result);
+    assert.strictEqual(result?.reason, 'placeholder');
+  });
+});
+
+test('detectNameAnomalies — slash-variant names flagged', async (t) => {
+  await t.test('two variants', () => {
+    const result = detectNameAnomalies('SODA ORANGE/COLA 500ML');
+    assert.ok(result);
+    assert.strictEqual(result?.reason, 'slash-variant');
+  });
+
+  await t.test('three variants', () => {
+    const result = detectNameAnomalies('JUICE MANGO/PASSION/ORANGE 1L');
+    assert.ok(result);
+    assert.strictEqual(result?.reason, 'slash-variant');
+  });
+});
+
+test('detectNameAnomalies — assorted/mix without size flagged', async (t) => {
+  await t.test('ASSORTED with no size unit', () => {
+    const result = detectNameAnomalies('BISCUITS ASSORTED');
+    assert.ok(result);
+    assert.strictEqual(result?.reason, 'assorted-no-size');
+  });
+
+  await t.test('MIX with no size unit', () => {
+    const result = detectNameAnomalies('CANDY MIX');
+    assert.ok(result);
+    assert.strictEqual(result?.reason, 'assorted-no-size');
+  });
+
+  await t.test('ASSORTED with size is NOT flagged as assorted-no-size', () => {
+    const result = detectNameAnomalies('BISCUITS ASSORTED 200G');
+    // Has a size, so assorted-no-size rule doesn't fire; no other rule applies
+    assert.strictEqual(result, null);
+  });
+});
+
+test('detectNameAnomalies — multi-size names flagged', async (t) => {
+  await t.test('500ML and 1L in same name (normalised: both ml)', () => {
+    const result = detectNameAnomalies('SUNTOP JUICE NO 500ML 1L');
+    assert.ok(result);
+    assert.strictEqual(result?.reason, 'multi-size');
+  });
+
+  await t.test('two gram sizes', () => {
+    const result = detectNameAnomalies('SOAP 100G 200G');
+    assert.ok(result);
+    assert.strictEqual(result?.reason, 'multi-size');
+  });
+
+  await t.test('250ML and 500ML (same unit, different values)', () => {
+    const result = detectNameAnomalies('JUICE ORANGE 250ML 500ML');
+    assert.ok(result);
+    assert.strictEqual(result?.reason, 'multi-size');
+  });
+});
+
+test('detectNameAnomalies — clean names return null', async (t) => {
+  await t.test('plain product with single size', () => {
+    assert.strictEqual(detectNameAnomalies('DAIMA MILK 500ML'), null);
+  });
+
+  await t.test('product with no size', () => {
+    assert.strictEqual(detectNameAnomalies('BLUE BAND MARGARINE'), null);
+  });
+
+  await t.test('product with kg size', () => {
+    assert.strictEqual(detectNameAnomalies('SUGAR 1KG'), null);
+  });
+
+  await t.test('same size repeated is not multi-size (1L 1L → normalises to one)', () => {
+    // 1L and 1L normalise to the same "1000ml" so set size=1; not flagged
+    assert.strictEqual(detectNameAnomalies('WATER 1L 1L'), null);
   });
 });

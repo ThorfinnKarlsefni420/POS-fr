@@ -27,6 +27,61 @@ export interface ClassifyResult {
   reason?: string;
 }
 
+export interface NameAnomaly {
+  reason: 'placeholder' | 'slash-variant' | 'assorted-no-size' | 'multi-size';
+  notes: string;
+}
+
+/**
+ * Detects name-based anomalies — items that are imported at ratio=30 but whose
+ * product description is ambiguous or unresolvable without human review.
+ *
+ * Returns null for clean names.
+ *
+ * Rules:
+ *  placeholder    — TEST / DUMMY / SAMPLE items; not real products
+ *  slash-variant  — "ORANGE/COLA/BLACK" style; multiple variants in one SKU
+ *  assorted-no-size — ASSORTED or MIX without any size unit; quantity undefined
+ *  multi-size     — name lists two or more distinct measurement specs (500ML 1L);
+ *                   the specific size this record refers to is unknown
+ */
+export function detectNameAnomalies(description: string): NameAnomaly | null {
+  const up = description.trim().toUpperCase();
+
+  // Placeholder: name is or starts with TEST / DUMMY / SAMPLE / N/A
+  if (/^(TEST|DUMMY|SAMPLE|N\/A)\b/.test(up)) {
+    return { reason: 'placeholder', notes: `Name "${description}" is a test or placeholder entry` };
+  }
+
+  // Slash-variant: X/Y or X/Y/Z patterns — multiple product variants under one SKU
+  if (/[A-Z0-9]+\/[A-Z0-9]+/.test(up)) {
+    return { reason: 'slash-variant', notes: `Name "${description}" lists multiple variants (slash-separated); create separate SKUs per variant` };
+  }
+
+  // Assorted / Mix without a size unit — no way to determine individual item weight or volume
+  const SIZE_UNIT = /\d+(?:\.\d+)?\s*(?:ML|L\b|LTR|G\b|GMS|GRM|KG)/i;
+  if (/\b(ASSORTED|MIX)\b/i.test(up) && !SIZE_UNIT.test(up)) {
+    return { reason: 'assorted-no-size', notes: `Name "${description}" is an assorted/mix product with no defined size — individual unit quantity unknown` };
+  }
+
+  // Multi-size: two or more distinct measurement expressions in the name
+  // e.g. "SUNTOP JUICE NO 500ML 1L" → sizes [500ML, 1L] → ambiguous
+  const sizeMatches = [...up.matchAll(/(\d+(?:\.\d+)?)\s*(ML|L\b|LTR|G\b|GMS|GRM|KG)/g)];
+  // Normalise to ml/g for comparison (L→ml, KG→g)
+  const normalisedSizes = new Set(sizeMatches.map(m => {
+    const val = parseFloat(m[1]);
+    const unit = m[2].replace(/\s/g, '');
+    if (unit === 'L' || unit === 'LTR') return `${val * 1000}ml`;
+    if (unit === 'KG') return `${val * 1000}g`;
+    return `${val}${unit.toLowerCase()}`;
+  }));
+  if (normalisedSizes.size >= 2) {
+    return { reason: 'multi-size', notes: `Name "${description}" contains ${normalisedSizes.size} different size specifications — unclear which size this record represents` };
+  }
+
+  return null;
+}
+
 export function normaliseUom(uom: string, ratio: number): string {
   return BULK_UOMS.has(uom.trim().toUpperCase()) && ratio === 1 ? 'PCS' : uom.trim();
 }
