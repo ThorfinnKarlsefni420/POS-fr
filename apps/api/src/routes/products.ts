@@ -235,6 +235,45 @@ productsRouter.get('/vat-pending', async (c) => {
   }));
 });
 
+// ── Inventory anomalies (static routes must be before /:id) ─────────────────
+
+productsRouter.get('/anomalies', async (c) => {
+  const { storeId } = await getStoreContext(c);
+  const resolved = c.req.query('resolved');
+  const where: Record<string, unknown> = storeId ? { storeId } : {};
+  if (resolved === 'true') where.resolved = true;
+  if (resolved === 'false') where.resolved = false;
+  const rows = await prisma.inventoryAnomaly.findMany({
+    where,
+    orderBy: { createdAt: 'desc' },
+  });
+  return c.json(rows);
+});
+
+// Bulk-store anomalies from a CSV parse run
+productsRouter.post('/anomalies', async (c) => {
+  const { storeId } = await getStoreContext(c);
+  if (!storeId) return c.json({ error: 'storeId required' }, 400);
+  const body = await c.req.json<Array<{ sourceId: string; name: string; reason: string; notes: string }>>();
+  if (!Array.isArray(body) || body.length === 0) return c.json({ error: 'body must be a non-empty array' }, 400);
+  const created = await prisma.inventoryAnomaly.createMany({
+    data: body.map((a) => ({ storeId, sourceId: a.sourceId, name: a.name, reason: a.reason, notes: a.notes })),
+    skipDuplicates: false,
+  });
+  return c.json({ created: created.count });
+});
+
+// Resolve / unresolve a single anomaly
+productsRouter.patch('/anomalies/:id', async (c) => {
+  const id = c.req.param('id');
+  const { resolved } = await c.req.json<{ resolved: boolean }>();
+  const row = await prisma.inventoryAnomaly.update({
+    where: { id },
+    data: { resolved, resolvedAt: resolved ? new Date() : null },
+  });
+  return c.json(row);
+});
+
 // Get single item
 productsRouter.get('/:id', async (c) => {
   const [item, catVatMap] = await Promise.all([
@@ -678,43 +717,4 @@ productsRouter.post('/:id/adjust', async (c) => {
     },
   });
   return c.json(item);
-});
-
-// ── Inventory anomalies ──────────────────────────────────────────────────────
-
-productsRouter.get('/anomalies', async (c) => {
-  const { storeId } = await getStoreContext(c);
-  const resolved = c.req.query('resolved');
-  const where: Record<string, unknown> = storeId ? { storeId } : {};
-  if (resolved === 'true') where.resolved = true;
-  if (resolved === 'false') where.resolved = false;
-  const rows = await prisma.inventoryAnomaly.findMany({
-    where,
-    orderBy: { createdAt: 'desc' },
-  });
-  return c.json(rows);
-});
-
-// Bulk-store anomalies from a CSV parse run
-productsRouter.post('/anomalies', async (c) => {
-  const { storeId } = await getStoreContext(c);
-  if (!storeId) return c.json({ error: 'storeId required' }, 400);
-  const body = await c.req.json<Array<{ sourceId: string; name: string; reason: string; notes: string }>>();
-  if (!Array.isArray(body) || body.length === 0) return c.json({ error: 'body must be a non-empty array' }, 400);
-  const created = await prisma.inventoryAnomaly.createMany({
-    data: body.map((a) => ({ storeId, sourceId: a.sourceId, name: a.name, reason: a.reason, notes: a.notes })),
-    skipDuplicates: false,
-  });
-  return c.json({ created: created.count });
-});
-
-// Resolve / unresolve a single anomaly
-productsRouter.patch('/anomalies/:id', async (c) => {
-  const id = c.req.param('id');
-  const { resolved } = await c.req.json<{ resolved: boolean }>();
-  const row = await prisma.inventoryAnomaly.update({
-    where: { id },
-    data: { resolved, resolvedAt: resolved ? new Date() : null },
-  });
-  return c.json(row);
 });

@@ -197,6 +197,14 @@ export const api = {
       req<{ ok: boolean }>(`/products/${itemId}/packaging/${tierId}`, { method: 'DELETE' }),
     history: (itemId: string) =>
       req<ItemHistory>(`/products/${itemId}/history`),
+    listAnomalies: (resolved?: boolean) => {
+      const qs = resolved === undefined ? '' : `?resolved=${resolved}`;
+      return req<InventoryAnomaly[]>(`/products/anomalies${qs}`);
+    },
+    bulkStoreAnomalies: (rows: Array<{ sourceId: string; name: string; reason: string; notes: string }>) =>
+      req<{ created: number }>('/products/anomalies', { method: 'POST', body: JSON.stringify(rows) }),
+    resolveAnomaly: (id: string, resolved: boolean) =>
+      req<InventoryAnomaly>(`/products/anomalies/${id}`, { method: 'PATCH', body: JSON.stringify({ resolved }) }),
   },
   settings: {
     get: () => req<ApiSettings>('/settings'),
@@ -784,6 +792,19 @@ export interface ShiftsReport {
     variance: number | null;
     transactionCount: number;
   }>;
+}
+
+export interface InventoryAnomaly {
+  id: string;
+  storeId: string;
+  sourceId: string;
+  name: string;
+  reason: string;
+  notes: string;
+  resolved: boolean;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface InventoryReport {

@@ -7,11 +7,13 @@ import { VatConfirmDialog } from './components/vat-confirm-dialog';
 import { StockLocationsManager } from './components/stock-locations-manager';
 import { ReplenishmentPanel } from './components/replenishment-panel';
 import { PurchaseOrdersPanel } from './components/purchase-orders-panel';
+import { AnomaliesPanel } from './components/anomalies-panel';
 import { useExpiringProducts } from '@/hooks/use-expiring-products';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { AlertTriangle, Upload, Plus, ImageUp, Download, Package, TrendingUp, ShieldCheck, DollarSign, Warehouse, Info, ClipboardList, CalendarX } from 'lucide-react';
+import { AlertTriangle, Upload, Plus, ImageUp, Download, Package, TrendingUp, ShieldCheck, DollarSign, Warehouse, Info, ClipboardList, CalendarX, ScanSearch } from 'lucide-react';
 import { useProducts } from '@/hooks/use-products';
+import { useAnomalies } from '@/hooks/use-anomalies';
 import { useAuthStore } from '@/features/auth/store/use-auth-store';
 import { useProfitReport } from '@/features/reports/hooks/use-reports';
 
@@ -103,6 +105,7 @@ export function InventoryPage() {
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPERADMIN';
 
+  const { data: openAnomalies = [] } = useAnomalies(false);
   const { data: expiringProducts = [] } = useExpiringProducts(30);
   const expiredCount = expiringProducts.filter((p) => p.status === 'EXPIRED').length;
   const criticalCount = expiringProducts.filter((p) => p.status === 'CRITICAL').length;
@@ -429,6 +432,18 @@ export function InventoryPage() {
             <TabsTrigger value="purchase-orders" className="flex items-center gap-1.5">
               <ClipboardList className="h-3.5 w-3.5" />
               Purchase Orders
+            </TabsTrigger>
+          )}
+          {isAdmin && (
+            <TabsTrigger value="anomalies" className="flex items-center gap-1.5">
+              <ScanSearch className="h-3.5 w-3.5" />
+              Anomalies
+              {openAnomalies.length > 0 && (
+                <span className="ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none"
+                  style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}>
+                  {openAnomalies.length}
+                </span>
+              )}
             </TabsTrigger>
           )}
         </TabsList>
@@ -931,6 +946,13 @@ export function InventoryPage() {
         {isAdmin && (
           <TabsContent value="purchase-orders" className="flex-1 min-h-0 overflow-hidden">
             <PurchaseOrdersPanel />
+          </TabsContent>
+        )}
+
+        {/* Anomalies tab */}
+        {isAdmin && (
+          <TabsContent value="anomalies" className="overflow-auto pb-4">
+            <AnomaliesPanel />
           </TabsContent>
         )}
 
