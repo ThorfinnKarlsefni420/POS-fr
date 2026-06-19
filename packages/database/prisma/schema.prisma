@@ -562,6 +562,8 @@ enum ConsignmentType {
   FIXED_COST
   PERCENTAGE_COMMISSION
   HYBRID
+  VENDOR_SELL_PRICE
+  MARGIN_SPLIT
 }
 
 enum SettlementStatus {

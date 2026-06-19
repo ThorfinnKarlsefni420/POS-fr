@@ -12,6 +12,8 @@ interface LungaRow {
   openingBal: number;
 }
 
+const BULK_UOMS = new Set(['CTN', 'OUT', 'BAL', 'DOZ', 'JRC', 'BAG', 'TM', 'HL', 'HLT']);
+
 export function parseLungaLunga(filePath: string): LungaRow[] {
   const content = readFileSync(filePath, 'utf-8');
   const lines = content.split('\n');
@@ -32,12 +34,15 @@ export function parseLungaLunga(filePath: string): LungaRow[] {
 
     const [, itemId, barcode, description, uom, ratioStr, costStr, priceStr, vatStr, balStr] = match;
 
+    const parsedUom = uom.trim();
+    const parsedRatio = parseFloat(ratioStr);
+
     rows.push({
       itemId,
       barcode,
       description: description.trim(),
-      uom: uom.trim(),
-      ratio: parseFloat(ratioStr),
+      uom: BULK_UOMS.has(parsedUom) && parsedRatio === 1.0 ? 'PCS' : parsedUom,
+      ratio: parsedRatio,
       cost: parseFloat(costStr),
       price: parseFloat(priceStr),
       vatPercent: parseInt(vatStr),

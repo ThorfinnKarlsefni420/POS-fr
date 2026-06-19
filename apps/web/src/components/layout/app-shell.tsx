@@ -38,7 +38,7 @@ export function AppShell() {
     <div className="flex h-screen overflow-hidden bg-background">
       {/* ── Sidebar ── */}
       <aside
-        className="w-14 md:w-52 flex flex-col shrink-0"
+        className="w-14 lg:w-52 flex flex-col shrink-0"
         style={{ background: 'var(--sidebar)', borderRight: '1px solid var(--sidebar-border)' }}
       >
         {/* Logo */}
@@ -52,7 +52,7 @@ export function AppShell() {
           >
             <Store className="h-4.5 w-4.5" style={{ color: 'var(--sidebar-primary-foreground)' }} />
           </div>
-          <div className="hidden md:block min-w-0">
+          <div className="hidden lg:block min-w-0">
             <p className="font-bold text-sm leading-tight truncate" style={{ color: 'var(--sidebar-foreground)' }}>
               {storeName}
             </p>
@@ -66,6 +66,7 @@ export function AppShell() {
             <NavLink
               key={to}
               to={to}
+              title={label}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
                   isActive ? 'active-nav' : 'inactive-nav'
@@ -80,7 +81,7 @@ export function AppShell() {
               {({ isActive }) => (
                 <>
                   <Icon className={`h-5 w-5 shrink-0 ${isActive ? '' : 'opacity-80'}`} />
-                  <span className="hidden md:block">{label}</span>
+                  <span className="hidden lg:block">{label}</span>
                 </>
               )}
             </NavLink>
@@ -89,7 +90,7 @@ export function AppShell() {
 
         {/* Bottom tag */}
         <div
-          className="p-4 hidden md:block"
+          className="p-4 hidden lg:block"
           style={{ borderTop: '1px solid var(--sidebar-border)' }}
         >
           <p className="text-xs" style={{ color: 'oklch(0.4 0 0)' }}>NomadBite · v1.0</p>
@@ -144,9 +145,9 @@ export function AppShell() {
                 >
                   {user.name.substring(0, 1).toUpperCase()}
                 </div>
-                <span className="hidden sm:block">{user.name}</span>
-                <span className="hidden sm:block text-muted-foreground">·</span>
-                <span className="hidden sm:block text-muted-foreground">{user.role}</span>
+                <span className="hidden md:block">{user.name}</span>
+                <span className="hidden md:block text-muted-foreground">·</span>
+                <span className="hidden md:block text-muted-foreground">{user.role}</span>
               </button>
             )}
           </div>

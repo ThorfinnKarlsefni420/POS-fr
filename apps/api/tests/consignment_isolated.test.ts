@@ -277,6 +277,111 @@ describe('Consignment Isolated Logic', { concurrency: false }, () => {
     assert.equal(Number((settlement as any).superadminAmount), 25);
   });
 
+  it('Supplier VENDOR_SELL_PRICE: ConsignmentSale uses vendor sellingPrice', async () => {
+    const { body: supplier } = await req('/suppliers', {
+      method: 'POST',
+      storeId,
+      userId: adminId,
+      body: JSON.stringify({
+        name: 'Vendor Sell Price Supplier',
+        isConsignment: true,
+        defaultType: 'VENDOR_SELL_PRICE',
+      }),
+    });
+    const supplierId = (supplier as any).id;
+
+    const { body: item } = await req('/products', {
+      method: 'POST',
+      storeId,
+      userId: adminId,
+      body: JSON.stringify({
+        name: 'VSP Item',
+        sku: 'VSP-001',
+        costPrice: 60,
+        sellingPrice: 100,
+        currentStock: 50,
+        supplierId,
+      }),
+    });
+    const itemId = (item as any).id;
+
+    // Sold at 120 (NomadBite markup), but supplier gets their sellingPrice (100) × qty
+    await req('/transactions', {
+      method: 'POST',
+      storeId,
+      userId: adminId,
+      body: JSON.stringify({
+        items: [{ id: itemId, quantity: 3, originalPrice: 120, soldPrice: 120 }],
+        totalAmount: 360,
+        taxAmount: 0,
+        paymentType: 'CASH',
+        userId: adminId,
+        shiftId,
+      }),
+    });
+
+    const { body: pending } = await req('/consignment/pending', { storeId, userId: adminId });
+    assert.ok(Array.isArray(pending));
+    const group = (pending as any[]).find(g => g.supplier.id === supplierId);
+    assert.ok(group, 'Pending group should exist for supplier');
+    assert.equal(Number(group.sales[0].supplierAmount), 300);    // 100 * 3
+    assert.equal(Number(group.sales[0].superadminAmount), 60);   // 360 - 300
+  });
+
+  it('Supplier MARGIN_SPLIT: ConsignmentSale splits profit correctly', async () => {
+    const { body: supplier } = await req('/suppliers', {
+      method: 'POST',
+      storeId,
+      userId: adminId,
+      body: JSON.stringify({
+        name: 'Margin Split Supplier',
+        isConsignment: true,
+        defaultType: 'MARGIN_SPLIT',
+        defaultRate: 0.60, // supplier gets cost + 60% of profit
+      }),
+    });
+    const supplierId = (supplier as any).id;
+
+    const { body: item } = await req('/products', {
+      method: 'POST',
+      storeId,
+      userId: adminId,
+      body: JSON.stringify({
+        name: 'MS Item',
+        sku: 'MS-001',
+        costPrice: 50,
+        sellingPrice: 80,
+        currentStock: 50,
+        supplierId,
+      }),
+    });
+    const itemId = (item as any).id;
+
+    // Sold at 100; cost=50, profit=50
+    // supplierAmount = cost(50) + profit(50) * 0.60 = 50 + 30 = 80
+    // superadminAmount = profit(50) * 0.40 = 20
+    await req('/transactions', {
+      method: 'POST',
+      storeId,
+      userId: adminId,
+      body: JSON.stringify({
+        items: [{ id: itemId, quantity: 1, originalPrice: 100, soldPrice: 100 }],
+        totalAmount: 100,
+        taxAmount: 0,
+        paymentType: 'CASH',
+        userId: adminId,
+        shiftId,
+      }),
+    });
+
+    const { body: pending } = await req('/consignment/pending', { storeId, userId: adminId });
+    assert.ok(Array.isArray(pending));
+    const group = (pending as any[]).find(g => g.supplier.id === supplierId);
+    assert.ok(group, 'Pending group should exist for supplier');
+    assert.equal(Number(group.sales[0].supplierAmount), 80);     // 50 + 50*0.60
+    assert.equal(Number(group.sales[0].superadminAmount), 20);   // 50*0.40
+  });
+
   it('Error: settle with non-existent supplier returns 404', async () => {
     const { status } = await req('/consignment/settle', {
       method: 'POST',

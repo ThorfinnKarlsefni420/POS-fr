@@ -167,7 +167,7 @@ transactionsRouter.post('/', async (c) => {
 
       // When falling back to store default, use store-level rate (PERCENTAGE_COMMISSION)
       const settlementType = itemSupplier
-        ? (supplier.defaultType as 'PERCENTAGE_COMMISSION' | 'VENDOR_SELL_PRICE' | 'MARGIN_SPLIT')
+        ? (supplier.defaultType as 'PERCENTAGE_COMMISSION' | 'VENDOR_SELL_PRICE' | 'FIXED_COST' | 'MARGIN_SPLIT' | 'HYBRID')
         : 'PERCENTAGE_COMMISSION';
       const settlementRate = itemSupplier
         ? Number(supplier.defaultRate)
@@ -176,12 +176,16 @@ transactionsRouter.post('/', async (c) => {
       if (settlementType === 'VENDOR_SELL_PRICE') {
         supplierAmount = Number(itemRecord?.sellingPrice ?? 0) * Number(li.quantity);
         superadminAmount = soldTotal - supplierAmount;
+      } else if (settlementType === 'FIXED_COST') {
+        supplierAmount = Number(itemRecord?.costPrice ?? 0) * Number(li.quantity);
+        superadminAmount = soldTotal - supplierAmount;
       } else if (settlementType === 'MARGIN_SPLIT') {
         const cost = Number(itemRecord?.costPrice ?? 0) * Number(li.quantity);
         const profit = soldTotal - cost;
         supplierAmount = cost + profit * settlementRate;
         superadminAmount = profit * (1 - settlementRate);
       } else {
+        // PERCENTAGE_COMMISSION (default) and HYBRID fallback
         supplierAmount = soldTotal * settlementRate;
         superadminAmount = soldTotal * (1 - settlementRate);
       }

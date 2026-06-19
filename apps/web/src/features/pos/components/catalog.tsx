@@ -29,6 +29,7 @@ function useCols(): number {
     if (typeof window === 'undefined') return 2;
     if (window.innerWidth >= 1280) return 5;
     if (window.innerWidth >= 1024) return 4;
+    if (window.innerWidth >= 768) return 3;   // tablets: sidebar collapsed, cart drawer
     if (window.innerWidth >= 640) return 3;
     return 2;
   });
@@ -36,6 +37,7 @@ function useCols(): number {
     const update = () => {
       if (window.innerWidth >= 1280) setCols(5);
       else if (window.innerWidth >= 1024) setCols(4);
+      else if (window.innerWidth >= 768) setCols(3);
       else if (window.innerWidth >= 640) setCols(3);
       else setCols(2);
     };
@@ -46,7 +48,6 @@ function useCols(): number {
 }
 
 function ProductCard({ product, onAdd }: { product: Product; onAdd: (p: Product) => void }) {
-  console.log(`[DEBUG] Product ${product.sku} packagingTiers:`, product.packagingTiers);
   const outOfStock = product.currentStock <= 0;
   const noPrice = product.sellingPrice <= 0 && product.nomadBitePrice <= 0;
   const disabled = outOfStock || noPrice;
