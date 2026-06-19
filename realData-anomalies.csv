@@ -1,0 +1,301 @@
+DB Name,Correct Product Name,UOMs,Ratios,Reason
+2235,5 tea 50g ginger,OUT,1,no-ratio-inferrable
+2236,5 tea ginger 100grm,OUT,1,no-ratio-inferrable
+1918,ACTOL,OUT,1,no-ratio-inferrable
+2043,AFIA 500ML ORAGE\COLA\BLACK,CTN,1,no-ratio-inferrable
+2600,"""AFNAN MAKORONI 20*500G.",PCS|PCS,0|0,no-base-row
+2268,AFRIN NOODLES,CTN,10,no-base-row
+2568,"""AG MAYONNAISE 80Z",PCS|PCS,0|0,no-base-row
+2566,"""AG TOMATO KETCHUP TOP DOWN 340G",PCS|PCS,0|0,no-base-row
+1098,"""AJAB  MOBAIL500",PCS,0,no-base-row
+2337,ALFFRESH MILK 500ML,CTN,1,no-ratio-inferrable
+2338,ALFRESH MILK 200ML,CTN,1,no-ratio-inferrable
+1934,ALMUNIAM FOIL  45CM*90M,OUT,1,no-ratio-inferrable
+2143,ALMUNIUM FOIL 45CM*90M,OUT,1,no-ratio-inferrable
+1124,"""ALTUNSA 2.5",PCS|PCS,0|0,no-base-row
+2485,AMINA RICE,BAG,1,no-ratio-inferrable
+1686,ANGRY BIRDS 500G,OUT|CTN,1|12,no-ratio-inferrable
+2654,ANTELOP UNGANO 500KG,BAL,1,no-ratio-inferrable
+2440,AQU CLEAR 1.5ML,CTN,1,no-ratio-inferrable
+2433,AQUA CLEAR 1 LT,BAL,1,no-ratio-inferrable
+2432,AQUA CLEAR 500ML,BAL,1,no-ratio-inferrable
+1769,ATTAR MIX,OUT,1,no-ratio-inferrable
+1387,AZAM ENERGY DRINK,CTN,1,no-ratio-inferrable
+952,BABAY JOY LOW COUNT,BAL,1,no-ratio-inferrable
+2000,BABY BABY SOFT L/C L,OUT|CTN,1|6,no-ratio-inferrable
+1383,BABY BABY SOFT NO 2,OUT|BAL,1|3,no-ratio-inferrable
+1382,BABY BABY SOFT NO 3,OUT|BAL,1|3,no-ratio-inferrable
+1380,BABY BABY SOFT NO 4,OUT|BAL,1|2,no-ratio-inferrable
+1381,BABY BABY SOFT NO 5,OUT|BAL,1|2,no-ratio-inferrable
+1568,BABY GIFT,OUT,1,no-ratio-inferrable
+2030,BABY GIFT BAG,OUT,1,no-ratio-inferrable
+1286,BABY JOY NO 2,OUT|BAL,1|3,no-ratio-inferrable
+1285,BABY JOY NO 3,OUT|BAL,1|3,no-ratio-inferrable
+1284,BABY JOY NO 4,OUT|BAL,1|3,no-ratio-inferrable
+1287,BABY JOY NO 5,OUT|BAL,1|3,no-ratio-inferrable
+1296,BABY STILL NO 2,OUT|BAL,1|4,no-ratio-inferrable
+1297,BABY STILL NO 3,OUT|BAL,1|4,no-ratio-inferrable
+1299,BABY STILL NO 4,OUT|BAL,1|4,no-ratio-inferrable
+1300,BABY STILL NO 5,OUT|BAL,1|4,no-ratio-inferrable
+219,BAMIR SOAP,PCS,11,no-base-row
+228,BASTA,KG|CTN,2|20,no-base-row
+1534,BATOOK CHEWING GUM,OUT|CTN,1|50,no-ratio-inferrable
+2116,"""BBQ SAUCE",PCS,0,no-base-row
+1214,BGG DADDY,CTN,1,no-ratio-inferrable
+2735,BIC PEN,OUT|CTN,1|40,no-ratio-inferrable
+1835,BIG RAZOR,DOZ|CTN,1|8,no-ratio-inferrable
+1860,BIKWI BUISCIT,CTN,1,no-ratio-inferrable
+1576,BLACK SHAMPOO,OUT|CTN,1|64,no-ratio-inferrable
+1494,BLOOM 250ML,OUT,1,no-ratio-inferrable
+1240,BLUE FALLS WATER 1.5LTR,CTN,1,water-bulk-small
+2073,BOKOMO OATS 1KG,OUT,1,no-ratio-inferrable
+263,"""BOUNCY  MAX",PCS|PCS,0|0,no-base-row
+2079,BROOKSIDE 200ML,CTN,1,no-ratio-inferrable
+1508,BROOKSIDE 500ML,CTN,1,no-ratio-inferrable
+1084,CHAPA MANDAZ,DOZ|CTN,1|6,no-ratio-inferrable
+1367,CHIKOOL BABERS,OUT|BAL,1|6,no-ratio-inferrable
+2111,CHOCO SYRUP 624G,OUT,1,no-ratio-inferrable
+1904,CHOCOLATE,OUT|CTN,1|24,no-ratio-inferrable
+1910,CHOCOLATE FLAVORED CANDY,OUT|CTN,1|10,no-ratio-inferrable
+2423,"""CIKOBEST",PCS|PCS,0|0,no-base-row
+2597,"""CINTHOL ANT BACTIRIAL72*75G.",PCS|PCS,0|0,no-base-row
+2598,"""CINTHOL ANTI BACTERIAL 48*175G.",PCS|PCS,0|0,no-base-row
+2599,"""CINTHOL ANTI BACTERIAL SOAP 72*125G.",PCS|PCS,0|0,no-base-row
+2184,CLINGFILM STATWRAP 30CM*300M,OUT|CTN,1|12,no-ratio-inferrable
+1579,COCOA SACHET 20G,DOZ|CTN,1|10,no-ratio-inferrable
+1697,COFTA,OUT|CTN,1|40,no-ratio-inferrable
+2694,COLGATE TOOTHBRUSH ANTI CAVITY,OUT|CTN,1|12,no-ratio-inferrable
+1809,COLGET HERBAL 35G,OUT|CTN,1|12,no-ratio-inferrable
+1755,CONFY BABY NO 2,OUT|BAL,1|4,no-ratio-inferrable
+1753,CONFY BABY NO 4,OUT|BAL,1|4,no-ratio-inferrable
+1756,CONFY BABY NO 5,OUT|BAL,1|4,no-ratio-inferrable
+310,"""COSMO UGAALI 1 kg",PCS|PCS,0|0,no-base-row
+1676,COSMO UGALI 500DMS,CTN,1,no-ratio-inferrable
+1468,"""COWN GET NO 2",PCS|PCS,0|0,no-base-row
+1905,"""CREAM WAFER",PCS|PCS,0|0,no-base-row
+1583,CROMA 10KG,CTN,1,no-ratio-inferrable
+1582,CURRY POWDER 10G,DOZ|CTN,1|24,no-ratio-inferrable
+1776,DAIRY TOP MILK 90DAYS,CTN,1,no-ratio-inferrable
+1775,DAIRY TOP MILK FINO PACK,CTN,1,no-ratio-inferrable
+1651,DANA CHILI SATCHET 20G,CTN,1,no-ratio-inferrable
+1650,DANA TOMTO SATCHET20G,CTN,1,no-ratio-inferrable
+2417,DELICIOUS MILK 500G,CTN,1,no-ratio-inferrable
+2241,DELICISH MILK 200G,CTN,1,no-ratio-inferrable
+1291,DELIGHT BABY NO 2,OUT|BAL,1|6,no-ratio-inferrable
+1290,DELIGHT BABY NO 3,OUT|BAL,1|6,no-ratio-inferrable
+1289,DELIGHT BABY NO 4,OUT|BAL,1|6,no-ratio-inferrable
+2527,"""DOUBLE ACTION T/BRUSH",PCS,0,no-base-row
+1987,DR PEDICAL L&M,OUT,1,no-ratio-inferrable
+2370,DRIFT 300ML,CTN,1,no-ratio-inferrable
+1758,DRIFT WATER 500ML,CTN,1,water-bulk-small
+2090,EASY CLEAN  S\PRITE,OUT|CTN,1|12,no-ratio-inferrable
+2089,EASY CLEAN S/WOOL 15G,OUT|BAL,1|20,no-ratio-inferrable
+2223,EBYAN 6 100G,OUT|CTN,1|6,no-ratio-inferrable
+1456,EMBE JUICE,CTN,1,no-ratio-inferrable
+1675,ENO,OUT|CTN,1|24,no-ratio-inferrable
+1803,EVEREADY AA,OUT|CTN,1|5,no-ratio-inferrable
+1804,EVEREADY AAA,OUT|CTN,1|6,no-ratio-inferrable
+1406,FA SOAP,OUT|CTN,1|12,no-ratio-inferrable
+1440,FAHAARI KENYA TEA 15GM,OUT|CTN,1|8,no-ratio-inferrable
+1504,FAHAARI KENYA TEA 50G,OUT|CTN,1|20,no-ratio-inferrable
+354,FAMILA PURE WIMBI 500G,BAG,1,no-ratio-inferrable
+360,FARAGELLO CHICKEN STOCK,CTN,1,no-ratio-inferrable
+2532,Faragello Honey 30Gm,CTN,1,no-ratio-inferrable
+361,FARAGELLO JIUCE MANGO,CTN,1,no-ratio-inferrable
+741,FARAGELO SATCHET 50G,OUT|CTN,1|4,no-ratio-inferrable
+1528,FASCLEAN 50G,DOZ|CTN,1|10,no-ratio-inferrable
+1294,FIESTA NO 2,OUT|BAL,1|5,no-ratio-inferrable
+1293,FIESTA NO 3,OUT|BAL,1|5,no-ratio-inferrable
+1292,"""FIESTA NO 4",PCS|PCS,0|0,no-base-row
+1295,FIESTA NO 5,OUT|BAL,1|5,no-ratio-inferrable
+1907,FLOWER SLICE,OUT|CTN,1|12,no-ratio-inferrable
+1931,FOODICO JUICE,CTN,1,no-ratio-inferrable
+2678,GEISHA BUY 2 GET 1 FREE,OUT|CTN,1|8,no-ratio-inferrable
+1549,GENTAL TISHU JUMBO ROLL,OUT|BAL,1|12,no-ratio-inferrable
+2135,GILLETTE 1,DOZ,1,no-ratio-inferrable
+2134,GILLETTE 2,DOZ,1,no-ratio-inferrable
+1325,GINGER BUISCIT 30G,CTN,1,no-ratio-inferrable
+1061,"""GLACIER WATER 1.5",PCS,0,no-base-row
+1358,GLACIER WATER 300ML,CTN,1,water-bulk-small
+1778,GLACIER WATER 500ML,CTN,1,water-bulk-small
+2559,"""GLOW SOAP 800G",PCS|PCS,0|0,no-base-row
+1632,"""GLUCOSE 6* 50G",PCS|PCS,0|0,no-base-row
+1174,"""GOLDEN 3.5",PCS,0,no-base-row
+1598,HANAN POCKET TISSUE,OUT|CTN,1|10,no-ratio-inferrable
+1780,HAPPIX DIAPERS NO 3,OUT|BAL,1|4,no-ratio-inferrable
+1779,HAPPIX DIAPERS NO 4,OUT|BAL,1|4,no-ratio-inferrable
+1781,HAPPIX DIAPERS NO 5,OUT|BAL,1|4,no-ratio-inferrable
+1936,HAPPY HAPPY BUISCT,CTN,1,no-ratio-inferrable
+2311,HARETT 500G,CTN,1,no-ratio-inferrable
+2402,HAVEN JUMBO TISSUE,OUT|BAL,1|12,no-ratio-inferrable
+1909,HEART ROSE,OUT|CTN,1|24,no-ratio-inferrable
+1916,HEDEX,OUT,1,no-ratio-inferrable
+2664,HIGHLAND MILK BOX 500ML,CTN,1,no-ratio-inferrable
+1201,hilwa 400 grm,CTN,1,no-ratio-inferrable
+938,HILWA LINGUINE,DOZ|CTN,1|36,no-ratio-inferrable
+666,"""HILWA SUNFLOWER OIL 5LITER",PCS,0,no-base-row
+2229,HOLA*500ml,CTN,12,no-base-row
+438,ILHAN RICE,BAG,1,no-ratio-inferrable
+2623,"""IMARA TOMATO SOUCE 5LTRS",PCS|PCS,0|0,no-base-row
+1853,IVORI BUTTER MILK,OUT|CTN,1|35,no-ratio-inferrable
+1664,JAMAA HOTEL SOAP,CTN,1,no-ratio-inferrable
+1488,JIK BLEACH REGULAR 70ML,DOZ|CTN,1|12,no-ratio-inferrable
+1963,JIK COLOUR 70ML,OUT|CTN,1|12,no-ratio-inferrable
+1070,JUNIOR JUICE,CTN,1,no-ratio-inferrable
+1857,KAHAWA BANADIR,OUT|CTN,1|52,no-ratio-inferrable
+1745,KAHAWA MAMBO 250G,OUT,1,no-ratio-inferrable
+2034,KALUMA TAPLETT,OUT,1,no-ratio-inferrable
+2461,"""ken tom 50g",PCS|PCS,0|0,no-base-row
+2624,"""KEN WHITE VINGER 12*700G",PCS|PCS,0|0,no-base-row
+2625,"""KEN WHITE VINGER 5LTRS",PCS|PCS,0|0,no-base-row
+1388,"""KENLEX  OIL 250",PCS|PCS,0|0,no-base-row
+2578,"""KENYA HIGHLAND 2.5KG.",PCS|PCS,0|0,no-base-row
+2459,"""KENYA highland milk2kg.",PCS|PCS,0|0,no-base-row
+934,KIFARU NGANO 2KG,BAL,1,no-ratio-inferrable
+2529,KINANGOP LONG LIFE MILK 500ML,CTN,1,no-ratio-inferrable
+2531,KINANGOP MIILK 200ML,CTN,1,no-ratio-inferrable
+2530,KINANGOP MILK 500ML,CTN,1,no-ratio-inferrable
+1331,KIWI 15ML,DOZ|CTN,1|36,no-ratio-inferrable
+477,"""KIWI 25ML",PCS|PCS,0|0,no-base-row
+2011,KIWI 40ML,DOZ|CTN,1|12,no-ratio-inferrable
+1183,KOL  MIXED FRUIT 1KJ,CTN,1,no-ratio-inferrable
+1185,KOL  MIXED FRUIT 500GRM,CTN,1,no-ratio-inferrable
+1184,KOL MIXED FRUIT 1KJ,TM,1,no-ratio-inferrable
+1186,KOL MIXED FRUIT 500GRM,TM,1,no-ratio-inferrable
+1537,KRACKLES 30G,CTN,1,no-ratio-inferrable
+2117,KRACKLES TOMTO CTOON 30G,CTN,1,no-ratio-inferrable
+1625,KSL FRUITDROPS 500G,OUT|CTN,1|30,no-ratio-inferrable
+1265,KULA YOUM JUCIE,CTN,1,no-ratio-inferrable
+2463,"""latest 500g",PCS|PCS,0|0,no-base-row
+1735,LATO 500ML,CTN,1,no-ratio-inferrable
+1102,"""lato250",PCS,0,no-base-row
+1699,LAVITA 320ML,CTN,1,no-ratio-inferrable
+1471,"""LIPTOMIL NO 2",PCS|PCS,0|0,no-base-row
+1876,LONG LIFE JASE 200ML,CTN,1,no-ratio-inferrable
+1457,LONG LIFE JESA 500ML,CTN,1,no-ratio-inferrable
+1135,"""lorys",PCS|PCS,0|0,no-base-row
+2098,MAC COFFEE*10.1.6G,OUT|CTN,1|10,no-ratio-inferrable
+1831,MACMUUR BUISCIT 40G,OUT|CTN,1|6,no-ratio-inferrable
+1973,MACSARA,HL,1,no-ratio-inferrable
+1974,MACSARA,HLT,1,no-ratio-inferrable
+2316,Mak C,OUT|CTN,1|12,no-ratio-inferrable
+2418,"""MAK C 2.5",PCS|PCS,0|0,no-base-row
+522,MAKARONI SMALL,KG|CTN,2|20,no-base-row
+972,MALLO,CTN,1,no-ratio-inferrable
+1868,MASHAALAH UJI,OUT,1,no-ratio-inferrable
+2581,"""MAX 400GDISHWASH",PCS|PCS,0|0,no-base-row
+2091,MEEK TISHU,OUT|BAL,1|4,no-ratio-inferrable
+2672,MERO PURE HONEY,CTN,1,no-ratio-inferrable
+2518,"""METHYLATED SPIRIT",PCS,0,no-base-row
+2474,"""MIKSI MILK BAG 2KG",PCS|PCS,0|0,no-base-row
+1911,MILCO 400G,OUT|CTN,1|24,no-ratio-inferrable
+1989,MILCO ECLIAR MILK 200G,OUT|CTN,1|24,no-ratio-inferrable
+1990,MILCO FUDGE MILK 300G,OUT|CTN,1|24,no-ratio-inferrable
+2395,"""milk man 500*12ml",PCS,0,no-base-row
+2200,MINUT MAID 1LTR,CTN,1,no-ratio-inferrable
+1969,MINUTE MAID 400ML,CTN,1,no-ratio-inferrable
+1970,MINUTE MAID APPLE 400ML,CTN,1,no-ratio-inferrable
+2064,MO ENERGY,CTN,1,no-ratio-inferrable
+1282,"""MOFIX NO 2",PCS|PCS,0|0,no-base-row
+1283,"""MOLFIX NO 4",PCS|PCS,0|0,no-base-row
+1544,MOLFIX NO 5,OUT|BAL,1|3,no-ratio-inferrable
+2015,MOONY PAMPES,OUT|CTN,1|3,no-ratio-inferrable
+2214,MOSKIL,DOZ|CTN,1|3,no-ratio-inferrable
+1584,MR BERRY GUM,OUT|CTN,1|20,no-ratio-inferrable
+926,MUMIAS PACKED 1KG,BAL,1,no-ratio-inferrable
+1902,MY HELLO MOBEIL,OUT|CTN,1|12,no-ratio-inferrable
+1901,MY RACER CAR,OUT|CTN,1|12,no-ratio-inferrable
+1362,NDOVU MOBILE 500GM,CTN,1,no-ratio-inferrable
+1604,NESCAFE CLASSIC1.6G,DOZ|OUT,1|7,no-ratio-inferrable
+1964,NOODIES 120G,CTN,1,no-ratio-inferrable
+1327,NUVITA BUISCIT,CTN,1,no-ratio-inferrable
+1661,OBAMA PEN,OUT|CTN,1|20,no-ratio-inferrable
+2614,OCEAN ENERGY DRINK 250ML,CTN,1,no-ratio-inferrable
+1436,"""OLIVE OIL 12* 500ML",PCS|PCS,0|0,no-base-row
+2166,OLIVE OIL 1lit,OUT|CTN,1|12,no-ratio-inferrable
+759,OMO 4*3.5 KG,PCS,4,no-base-row
+2491,ORAL B TOOTH BRUSH,DOZ,1,no-ratio-inferrable
+576,OYO MUCHUZI MIX,DOZ|CTN,1|10,no-ratio-inferrable
+2112,OYSTER SAUCE 710G,OUT,1,no-ratio-inferrable
+2092,PAMPEENO PAMPERS 40* NO 4,OUT|BAL,1|5,no-ratio-inferrable
+2093,PAMPEENO PAMPERS NO 3,OUT|BAL,1|5,no-ratio-inferrable
+2239,"""PAMPERS *4*32",PCS|PCS,0|0,no-base-row
+2257,"""PAMPERS MINI 4*40",PCS|PCS,0|0,no-base-row
+1917,PANADOL ADVANCE*40psc,OUT|CTN,1|40,no-ratio-inferrable
+2115,PANCAKE SYRUP AG,OUT,1,no-ratio-inferrable
+2616,"""PASTA LILIA 500G",PCS|PCS|PCS,0|0|0,no-base-row
+598,"""PEANUT BUTTER 510G",PCS,0,no-base-row
+235,PEGS CLOTH *10UT,OUT|BAG,1|10,no-ratio-inferrable
+2473,"""PEP TOMATO 1LTR",PCS|PCS,0|0,no-base-row
+2053,PHILIPS 40/60/75/100W,OUT|CTN,1|10,no-ratio-inferrable
+1628,PIKA OIL 10LTR,CTN,1,no-ratio-inferrable
+984,POA BAR SOAP,CTN,1,no-ratio-inferrable
+2576,"""POLRAHA 1LTR",PCS|PCS,0|0,no-base-row
+2575,"""POLRAHA 500ML",PCS|PCS,0|0,no-base-row
+2149,POPCORN BIG,OUT|CTN,1|18,no-ratio-inferrable
+2150,POPCORN SMALL,OUT|CTN,1|30,no-ratio-inferrable
+2392,POSTMAN 20LIT,BAL,1,no-ratio-inferrable
+942,PRESTIGE 10KG CTN,CTN,1,no-ratio-inferrable
+2607,"""QUUMIST WATER 500ML",PCS,0,no-base-row
+2608,"""QUUMIST WATER 5LT",PCS,0,no-base-row
+1422,RAHA DRINKING CHOCOLATE 10G,DOZ|CTN,1|12,no-ratio-inferrable
+2186,RAUCH 355ML,CTN,1,no-ratio-inferrable
+2221,RED BULL CTN,CTN,1,no-ratio-inferrable
+1207,RENZO CHICKEN,CTN,1,no-ratio-inferrable
+1593,ROYCO SATCHET 10G,DOZ|CTN,1|10,no-ratio-inferrable
+1908,RUGBY OVAL,OUT|CTN,1|15,no-ratio-inferrable
+1048,"""SALIT 20 LTR",PCS,0,no-base-row
+2220,SALWA 10KGCTN,CTN,1,no-ratio-inferrable
+1814,SEAGUL FAT 10KG,CTN,1,no-ratio-inferrable
+684,SHOPING,CTN,1,no-ratio-inferrable
+2330,SILVER OMO,BAG,5,no-base-row
+2188,SLEEPERS/DACAS,OUT|DOZ|CTN,1|12|60,no-ratio-inferrable
+1337,SMA MILK 800G 1,OUT|CTN,1|6,no-ratio-inferrable
+1338,"""SMA MILK 800G 2",PCS|PCS,0|0,no-base-row
+2005,SNOOKER BALLGUM,OUT|CTN,1|12,no-ratio-inferrable
+1636,SODA 500ML,CTN,1,no-ratio-inferrable
+2018,SONAPLAST*50PACKETS,OUT|CTN,1|50,no-ratio-inferrable
+2580,"""SPARKLE130G TOOTHPASTE",PCS|PCS,0|0,no-base-row
+1906,STAR CUP OFFER,OUT|CTN,1|12,no-ratio-inferrable
+2182,STATWRAP FOIL 30CM*30M,OUT|CTN,1|12,no-ratio-inferrable
+2183,STATWRAP FOIL 45CM*5M,OUT|CTN,1|24,no-ratio-inferrable
+2114,STRAWBERRY SYRUP AG,OUT,1,no-ratio-inferrable
+2203,STREPSILS *24OUT,OUT|CTN,1|24,no-ratio-inferrable
+959,SUMO CANDLE,OUT|CTN,1|12,no-ratio-inferrable
+2391,SUN TOP,CTN,1,no-ratio-inferrable
+2016,SUPER GLUE,OUT|CTN,1|100,no-ratio-inferrable
+2615,SUPER SOFT,BAL|PCS,1|18,no-ratio-inferrable
+2519,"""SURGICAL SPIRIT",PCS,0,no-base-row
+2113,SWEAT CHILLY VGG,OUT,1,no-ratio-inferrable
+1737,"""SWEAT WATER 300ML",PCS,0,no-base-row
+2696,SWISS ROLL CAKE,OUT|CTN,1|12,no-ratio-inferrable
+1277,"""TAFFY NO 3",PCS|PCS,0|0,no-base-row
+1687,TAJI TISHU TOILET,OUT|BAL,1|4,no-ratio-inferrable
+1751,TAMAM SOAP 100G,OUT|CTN,1|12,no-ratio-inferrable
+1894,TAMU JUICE 300ML,CTN,1,no-ratio-inferrable
+1893,TAMU JUICE 500ML,CTN,1,no-ratio-inferrable
+1050,"""TANZA SPAGHTI",PCS|PCS|PCS,0|0|0,no-base-row
+2697,TAW TAW SOFT BISCUIT,OUT|CTN,1|12,no-ratio-inferrable
+2068,"""TCR SANITARY PADS",PCS|PCS,0|0,no-base-row
+1498,TOILEX TISSU,OUT|BAL,1|4,no-ratio-inferrable
+740,TOLEIT PAPER,DOZ|CTN,12|40,no-base-row
+1305,TOM CANDY,OUT|CTN,1|20,no-ratio-inferrable
+1618,TOMT FIRST SACHET,CTN,1,no-ratio-inferrable
+1879,TOMTTO PETTI 70G,CTN,1,no-ratio-inferrable
+1404,TOOTH BICK,DOZ|CTN,1|40,no-ratio-inferrable
+2045,TOOTH BRUSH,OUT|CTN,1|12,no-ratio-inferrable
+2240,TOOTH BRUSH 12,DOZ,1,no-ratio-inferrable
+1116,TOSS BLUE 3.5,BAG,1,no-ratio-inferrable
+2084,TULIP TISHU,OUT|BAL,1|4,no-ratio-inferrable
+2585,"""UMOJA NGANO 2KG",PCS|PCS,0|0,no-base-row
+760,UNO OMO 5 KG,BAG,1,no-ratio-inferrable
+2066,UUNSI SOMALI,OUT,1,no-ratio-inferrable
+2570,"""VGG MAYONAISE 160Z",PCS|PCS,0|0,no-base-row
+2571,"""VGG MAYONNAISE 80Z",PCS|PCS,0|0,no-base-row
+1861,VITA GOLD BUISCIT,CTN,1,no-ratio-inferrable
+1413,WHOLE GRAINS PUFFED SNACKS,DOZ|CTN,12|48,no-base-row
+2680,WISDOM TOOTHBRUSH.,DOZ,1,no-ratio-inferrable
+2448,wish chocolate,OUT,1,no-ratio-inferrable
+794,YAHOO 250 ML,CTN,1,no-ratio-inferrable
+2187,YIPPY 200ML,CTN,1,no-ratio-inferrable
+2312,ZENTA 700G,CTN,12,no-base-row
