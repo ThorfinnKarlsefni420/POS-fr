@@ -5,6 +5,7 @@ import { useProducts } from '@/hooks/use-products';
 import { useBarcodeScanner } from '@/hooks/use-barcode-scanner';
 import { useVoiceAssist } from '@/hooks/use-voice-assist';
 import { useAuthStore } from '@/features/auth/store/use-auth-store';
+import { api, apiItemToProduct } from '@/lib/api';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Search, Plus, Package, Loader2, Eye, EyeOff, Layers, Mic, MicOff, X } from 'lucide-react';
@@ -263,9 +264,23 @@ export function Catalog() {
     );
     if (match && match.sellingPrice > 0) {
       handleAddProduct(match);
-    } else {
-      setSearch(barcode);
+      return;
     }
+    // Not in the already-loaded catalog — ask the server (matches by real barcode,
+    // not SKU, and catches products the client hasn't fetched/refreshed yet)
+    api.products.byBarcode(barcode)
+      .then(({ item, matchedTierId }) => {
+        const product = apiItemToProduct(item);
+        const tier = matchedTierId
+          ? product.packagingTiers.find((t) => t.id === matchedTierId)
+          : undefined;
+        if (tier) {
+          addItem(product, tier);
+        } else {
+          handleAddProduct(product);
+        }
+      })
+      .catch(() => setSearch(barcode));
   }, [products, addItem, handleAddProduct]);
 
   useBarcodeScanner(handleScan);

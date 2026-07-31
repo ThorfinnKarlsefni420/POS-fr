@@ -146,6 +146,7 @@ storesRouter.delete('/:id', async (c) => {
   await prisma.inventoryAdjustment.deleteMany({ where: { itemId: { in: itemIds } } });
   await prisma.item.deleteMany({ where: { storeId: id } });
   await prisma.storeSetting.deleteMany({ where: { storeId: id } });
+  await prisma.inventoryAnomaly.deleteMany({ where: { storeId: id } });
   await prisma.vendor.deleteMany({ where: { storeId: id } });
   // ConsignmentSettlement → Supplier (must go before supplier)
   await prisma.consignmentSettlement.deleteMany({ where: { storeId: id } });

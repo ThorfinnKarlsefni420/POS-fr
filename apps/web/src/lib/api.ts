@@ -146,6 +146,8 @@ export const api = {
       req<ApiItem>(`/products/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id: string) => req<{ ok: boolean }>(`/products/${id}`, { method: 'DELETE' }),
     vatPending: () => req<VatPendingItem[]>('/products/vat-pending'),
+    byBarcode: (barcode: string) =>
+      req<{ item: ApiItem; matchedTierId: string | null }>(`/products/by-barcode/${encodeURIComponent(barcode)}`),
     expiring: (days = 30) => req<ExpiringProduct[]>(`/products/expiring?days=${days}`),
     confirmVatClass: (id: string, vatClassId: string, vatOverrideReason: string) =>
       req<ApiItem>(`/products/${id}`, {

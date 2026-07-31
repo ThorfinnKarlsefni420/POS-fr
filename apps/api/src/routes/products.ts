@@ -1,11 +1,43 @@
 import { Hono } from 'hono';
+import { Prisma } from '@prisma/client';
 import { bodyLimit } from 'hono/body-limit';
 import { prisma } from '../lib/prisma';
 import { getStoreContext } from '../middleware/store-context';
 import { resolveVatClass, VatClassData, getTaxRateFromVatClassId } from '../lib/vat-engine';
+import { validateBarcode } from '../lib/barcode';
 
 export const productsRouter = new Hono();
 // ...
+
+// If `barcode` is a standard GTIN length (EAN-8/UPC-A/EAN-13/ITF-14) but fails its
+// check digit, record it as a reviewable anomaly. Never blocks the write — most
+// barcodes in this system are internal supplier codes with no GTIN checksum at all
+// (see BARCODE_IMPLEMENTATION_PLAN.md), so this is advisory only.
+async function flagBarcodeAnomaly(storeId: string, sourceId: string, name: string, barcode: string | null | undefined) {
+  if (!barcode) return;
+  const result = validateBarcode(barcode);
+  if (result.valid) return;
+  await prisma.inventoryAnomaly.create({
+    data: {
+      storeId,
+      sourceId,
+      name,
+      reason: 'invalid-barcode-checksum',
+      notes: `Barcode "${barcode}" fails ${result.symbology} check-digit validation`,
+    },
+  });
+}
+
+// storeId+barcode has a DB uniqueness constraint (Item_storeId_barcode_key). Converts
+// a Prisma P2002 violation on it into a clean 409 instead of a raw 500.
+function isDuplicateBarcodeError(err: unknown): boolean {
+  return (
+    err instanceof Prisma.PrismaClientKnownRequestError &&
+    err.code === 'P2002' &&
+    Array.isArray((err.meta as { target?: unknown })?.target) &&
+    ((err.meta as { target: unknown[] }).target).includes('barcode')
+  );
+}
 
 // Load all CategoryVat rows once and return a category → effective etimsCode map
 async function loadCatVatMap() {
@@ -120,7 +152,7 @@ productsRouter.post('/tiers/bulk', async (c) => {
   const results: Array<{ sku: string; status: 'ok' | 'skipped'; tiersApplied?: number; reason?: string }> = [];
 
   for (const [sku, tierRows] of bySku) {
-    const item = await prisma.item.findFirst({ where: { sku, storeId }, select: { id: true } });
+    const item = await prisma.item.findFirst({ where: { sku, storeId }, select: { id: true, name: true } });
     if (!item) {
       results.push({ sku, status: 'skipped', reason: 'SKU not found in this store' });
       continue;
@@ -142,6 +174,9 @@ productsRouter.post('/tiers/bulk', async (c) => {
         })),
       });
     });
+    for (const t of sorted) {
+      await flagBarcodeAnomaly(storeId, sku, item.name, t.barcode);
+    }
     results.push({ sku, status: 'ok', tiersApplied: sorted.length });
   }
 
@@ -181,6 +216,49 @@ productsRouter.get('/expiring', async (c) => {
       };
     })
   );
+});
+
+// Barcode scan lookup — resolves an item-level barcode or a packaging-tier barcode
+// (e.g. a distinct Carton/Case code). Used as the server-side fallback when a scan
+// doesn't match anything already loaded client-side; see
+// apps/web/src/features/pos/components/catalog.tsx handleScan.
+productsRouter.get('/by-barcode/:barcode', async (c) => {
+  const { storeId } = await getStoreContext(c);
+  if (!storeId) return c.json({ error: 'storeId required' }, 400);
+  const barcode = c.req.param('barcode');
+
+  const include = {
+    vatClass: { select: { id: true, code: true, rate: true, etimsCode: true } },
+    packagingTiers: { select: TIER_SELECT, orderBy: { level: 'asc' as const } },
+  };
+
+  const lookup = async (insensitive: boolean) => {
+    const barcodeFilter = insensitive ? { equals: barcode, mode: 'insensitive' as const } : barcode;
+
+    const direct = await prisma.item.findFirst({ where: { storeId, barcode: barcodeFilter }, include });
+    if (direct) return { item: direct, matchedTierId: null as string | null };
+
+    const viaTier = await prisma.item.findFirst({
+      where: { storeId, packagingTiers: { some: { barcode: barcodeFilter } } },
+      include,
+    });
+    if (!viaTier) return null;
+
+    // Tiers are ordered by level asc, so the lowest-level (base unit) tier wins if
+    // siblings share a barcode — matches the client-side .find() tie-break in
+    // catalog.tsx. See migration 20260727000000_barcode_indexes for why some
+    // imported items have this ambiguity (not yet cleaned up).
+    const tier = viaTier.packagingTiers.find((t) =>
+      insensitive ? t.barcode?.toLowerCase() === barcode.toLowerCase() : t.barcode === barcode
+    );
+    return { item: viaTier, matchedTierId: tier?.id ?? null };
+  };
+
+  const hit = (await lookup(false)) ?? (await lookup(true));
+  if (!hit) return c.json({ error: 'Not found' }, 404);
+
+  const catVatMap = await loadCatVatMap();
+  return c.json({ item: withEtimsCode(hit.item, catVatMap), matchedTierId: hit.matchedTierId });
 });
 
 productsRouter.get('/vat-pending', async (c) => {
@@ -307,7 +385,7 @@ productsRouter.get('/:id/packaging', async (c) => {
 // Create a tier
 productsRouter.post('/:id/packaging', async (c) => {
   const id = c.req.param('id');
-  const existing = await prisma.item.findUnique({ where: { id }, select: { id: true } });
+  const existing = await prisma.item.findUnique({ where: { id }, select: { id: true, storeId: true, name: true } });
   if (!existing) return c.json({ error: 'Item not found' }, 404);
   const body = await c.req.json();
   if (!body.name || body.level === undefined || body.quantityInBase === undefined) {
@@ -330,13 +408,17 @@ productsRouter.post('/:id/packaging', async (c) => {
       roundingPrecision: body.roundingPrecision != null ? Number(body.roundingPrecision) : 0.001,
     },
   });
+  await flagBarcodeAnomaly(existing.storeId, id, existing.name, tier.barcode);
   return c.json(tier, 201);
 });
 
 // Update a tier
 productsRouter.patch('/:id/packaging/:tierId', async (c) => {
   const { id, tierId } = c.req.param();
-  const existing = await prisma.packagingTier.findUnique({ where: { id: tierId } });
+  const existing = await prisma.packagingTier.findUnique({
+    where: { id: tierId },
+    include: { item: { select: { storeId: true, name: true } } },
+  });
   if (!existing || existing.itemId !== id) return c.json({ error: 'Tier not found' }, 404);
   const body = await c.req.json();
   if (body.isBaseUnit) {
@@ -357,6 +439,9 @@ productsRouter.patch('/:id/packaging/:tierId', async (c) => {
       ...(body.roundingPrecision !== undefined && { roundingPrecision: Number(body.roundingPrecision) }),
     },
   });
+  if (body.barcode !== undefined) {
+    await flagBarcodeAnomaly(existing.item.storeId, id, existing.item.name, tier.barcode);
+  }
   return c.json(tier);
 });
 
@@ -406,50 +491,63 @@ productsRouter.post('/', async (c) => {
 productsRouter.patch('/:id', async (c) => {
   const id = c.req.param('id');
 
-  const existing = await prisma.item.findUnique({ where: { id }, select: { id: true } });
+  const existing = await prisma.item.findUnique({ where: { id }, select: { id: true, storeId: true, name: true } });
   if (!existing) return c.json({ error: 'Item not found' }, 404);
 
   const body = await c.req.json();
-  const item = await prisma.item.update({
-    where: { id },
-    data: {
-      ...(body.name !== undefined && { name: body.name }),
-      ...(body.sku !== undefined && { sku: body.sku }),
-      ...(body.category !== undefined && { category: body.category }),
-      ...(body.subCategory !== undefined && { subCategory: body.subCategory }),
-      ...(body.unit !== undefined && { unit: body.unit }),
-      ...(body.boxQty !== undefined && { boxQty: body.boxQty }),
-      ...(body.costPrice !== undefined && { costPrice: Number(body.costPrice) }),
-      ...(body.sellingPrice !== undefined && { sellingPrice: Number(body.sellingPrice) }),
-      ...(body.nomadBitePrice !== undefined && { nomadBitePrice: Number(body.nomadBitePrice) }),
-      ...(body.taxRate !== undefined && { taxRate: Number(body.taxRate) }),
-      ...(body.vatClassId !== undefined && {
-        vatClassId: body.vatClassId,
-        // Keep legacy taxRate in sync so old code reading it stays consistent
-        taxRate: getTaxRateFromVatClassId(body.vatClassId) * 100,
-      }),
-      ...(body.vatOverrideReason !== undefined && { vatOverrideReason: body.vatOverrideReason }),
-      ...(body.needsVatConfirmation !== undefined && { needsVatConfirmation: Boolean(body.needsVatConfirmation) }),
-      ...(body.isFractional !== undefined && { isFractional: body.isFractional }),
-      ...(body.currentStock !== undefined && { currentStock: Number(body.currentStock) }),
-      ...(body.notes !== undefined && { notes: body.notes }),
-      ...(body.imageUrl !== undefined && { imageUrl: body.imageUrl }),
-      ...(body.manufacturingDate !== undefined && {
-        manufacturingDate: body.manufacturingDate ? new Date(body.manufacturingDate) : null,
-      }),
-      ...(body.expiryDate !== undefined && {
-        expiryDate: body.expiryDate ? new Date(body.expiryDate) : null,
-      }),
-      ...(body.description !== undefined && { description: body.description }),
-      ...(body.barcode !== undefined && { barcode: body.barcode || null }),
-      ...(body.supplierName !== undefined && { supplierName: body.supplierName || null }),
-      ...(body.supplierPhone !== undefined && { supplierPhone: body.supplierPhone || null }),
-      ...(body.leadTimeDays !== undefined && { leadTimeDays: body.leadTimeDays !== '' ? Number(body.leadTimeDays) : null }),
-      ...(body.reorderPoint !== undefined && { reorderPoint: body.reorderPoint !== '' ? Number(body.reorderPoint) : null }),
-      ...(body.reorderQty !== undefined && { reorderQty: body.reorderQty !== '' ? Number(body.reorderQty) : null }),
-      ...(body.supplierId !== undefined && { supplierId: body.supplierId || null }),
-    },
-  });
+  let item;
+  try {
+    item = await prisma.item.update({
+      where: { id },
+      data: {
+        ...(body.name !== undefined && { name: body.name }),
+        ...(body.sku !== undefined && { sku: body.sku }),
+        ...(body.category !== undefined && { category: body.category }),
+        ...(body.subCategory !== undefined && { subCategory: body.subCategory }),
+        ...(body.unit !== undefined && { unit: body.unit }),
+        ...(body.boxQty !== undefined && { boxQty: body.boxQty }),
+        ...(body.costPrice !== undefined && { costPrice: Number(body.costPrice) }),
+        ...(body.sellingPrice !== undefined && { sellingPrice: Number(body.sellingPrice) }),
+        ...(body.nomadBitePrice !== undefined && { nomadBitePrice: Number(body.nomadBitePrice) }),
+        ...(body.taxRate !== undefined && { taxRate: Number(body.taxRate) }),
+        ...(body.vatClassId !== undefined && {
+          vatClassId: body.vatClassId,
+          // Keep legacy taxRate in sync so old code reading it stays consistent
+          taxRate: getTaxRateFromVatClassId(body.vatClassId) * 100,
+        }),
+        ...(body.vatOverrideReason !== undefined && { vatOverrideReason: body.vatOverrideReason }),
+        ...(body.needsVatConfirmation !== undefined && { needsVatConfirmation: Boolean(body.needsVatConfirmation) }),
+        ...(body.isFractional !== undefined && { isFractional: body.isFractional }),
+        ...(body.currentStock !== undefined && { currentStock: Number(body.currentStock) }),
+        ...(body.notes !== undefined && { notes: body.notes }),
+        ...(body.imageUrl !== undefined && { imageUrl: body.imageUrl }),
+        ...(body.manufacturingDate !== undefined && {
+          manufacturingDate: body.manufacturingDate ? new Date(body.manufacturingDate) : null,
+        }),
+        ...(body.expiryDate !== undefined && {
+          expiryDate: body.expiryDate ? new Date(body.expiryDate) : null,
+        }),
+        ...(body.description !== undefined && { description: body.description }),
+        ...(body.barcode !== undefined && { barcode: body.barcode || null }),
+        ...(body.supplierName !== undefined && { supplierName: body.supplierName || null }),
+        ...(body.supplierPhone !== undefined && { supplierPhone: body.supplierPhone || null }),
+        ...(body.leadTimeDays !== undefined && { leadTimeDays: body.leadTimeDays !== '' ? Number(body.leadTimeDays) : null }),
+        ...(body.reorderPoint !== undefined && { reorderPoint: body.reorderPoint !== '' ? Number(body.reorderPoint) : null }),
+        ...(body.reorderQty !== undefined && { reorderQty: body.reorderQty !== '' ? Number(body.reorderQty) : null }),
+        ...(body.supplierId !== undefined && { supplierId: body.supplierId || null }),
+      },
+    });
+  } catch (err) {
+    if (isDuplicateBarcodeError(err)) {
+      return c.json({ error: 'Barcode already in use by another item in this store' }, 409);
+    }
+    throw err;
+  }
+
+  if (body.barcode !== undefined) {
+    await flagBarcodeAnomaly(existing.storeId, id, item.name, body.barcode || null);
+  }
+
   return c.json(item);
 });
 
@@ -540,6 +638,7 @@ productsRouter.post(
       isFractional: Boolean(p.isFractional),
       currentStock: Number(p.currentStock ?? 0),
       notes: p.notes ? String(p.notes) : null,
+      barcode: p.barcode ? String(p.barcode) : null,
       imageUrl: p.imageUrl ? String(p.imageUrl) : null,
       manufacturingDate: p.manufacturingDate ? new Date(String(p.manufacturingDate)) : null,
       expiryDate: p.expiryDate ? new Date(String(p.expiryDate)) : null,
@@ -596,6 +695,11 @@ productsRouter.post(
               }),
             ]);
           }
+
+          await flagBarcodeAnomaly(storeId, item.id, row.name, row.barcode);
+          for (const t of tiers) {
+            await flagBarcodeAnomaly(storeId, item.id, row.name, t.barcode);
+          }
         })
       );
 
@@ -606,10 +710,12 @@ productsRouter.post(
         } else {
           failed++;
           const err = (r as PromiseRejectedResult).reason;
-          const reason = err?.message ?? String(err);
-          const code = err?.code ? ` [${err.code}]` : '';
-          const meta = err?.meta ? ` meta=${JSON.stringify(err.meta)}` : '';
           const p = chunk[j];
+          const reason = isDuplicateBarcodeError(err)
+            ? `barcode "${p?.barcode}" already used by another item in this store`
+            : err?.message ?? String(err);
+          const code = !isDuplicateBarcodeError(err) && err?.code ? ` [${err.code}]` : '';
+          const meta = !isDuplicateBarcodeError(err) && err?.meta ? ` meta=${JSON.stringify(err.meta)}` : '';
           const msg = `item[${i + j}] name="${p?.name}" sku="${p?.sku}"${code}${meta}: ${reason}`;
           if (failureReasons.length < 20) failureReasons.push(msg);
           console.error(`[IMPORT ERROR] ${msg}`);
