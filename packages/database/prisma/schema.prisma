@@ -81,6 +81,8 @@ model Shift {
   cashLogs     CashLog[]
   transactions Transaction[]
   createdAt    DateTime  @default(now())
+
+  @@index([storeId, startTime])
 }
 
 model CashLog {
@@ -183,6 +185,8 @@ model Item {
   updatedAt        DateTime  @updatedAt
 
   @@unique([storeId, sku])
+  @@unique([storeId, barcode])
+  @@index([storeId, category])
 }
 
 model PackagingTier {
@@ -203,6 +207,7 @@ model PackagingTier {
 
   @@unique([itemId, name])
   @@unique([itemId, level])
+  @@index([barcode])
 }
 
 // ─── Multi-Location Stock ─────────────────────────────────────────────────────
@@ -262,6 +267,9 @@ model StockTransfer {
   notes           String?
   performedById   String?
   createdAt       DateTime       @default(now())
+
+  @@index([itemId, createdAt])
+  @@index([storeId])
 }
 
 // ─── Transactions ────────────────────────────────────────────────────────────
@@ -290,6 +298,8 @@ model Transaction {
   splitChange      Decimal?    @db.Decimal(10, 2)
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
+
+  @@index([storeId, createdAt])
 }
 
 model TransactionPayment {
@@ -335,6 +345,9 @@ model LineItem {
   netAmount     Decimal     @default(0)    @db.Decimal(10, 2)  // per-unit net excl. VAT
   consignmentSale ConsignmentSale?
   createdAt     DateTime    @default(now())
+
+  @@index([transactionId])
+  @@index([itemId])
 }
 
 model InventoryAdjustment {
@@ -345,6 +358,8 @@ model InventoryAdjustment {
   reasonCode AdjustReason
   note       String?
   createdAt  DateTime   @default(now())
+
+  @@index([itemId, createdAt])
 }
 
 enum AdjustReason {
