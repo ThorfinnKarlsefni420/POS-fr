@@ -3,12 +3,12 @@ import { next } from '@vercel/functions';
 declare const process: { env: Record<string, string | undefined> };
 
 // Staff-only gate for the whole POS link. Not per-user auth — one shared
-// code, checked here, unlocks a cookie for ~30 days. Rotate STAFF_ACCESS_CODE
+// code, checked here, unlocks a cookie for ~3 days. Rotate STAFF_ACCESS_CODE
 // in Vercel env vars to revoke access for everyone at once (no per-person
 // revoke). Real login/roles still happen inside the app after this.
 const COOKIE_NAME = 'nb_staff_gate';
 const VERIFY_PATH = '/__staff-gate/verify';
-const MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
+const MAX_AGE_SECONDS = 60 * 60 * 24 * 3;
 
 function getCookie(request: Request, name: string): string | undefined {
   const header = request.headers.get('cookie');
