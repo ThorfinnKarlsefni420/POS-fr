@@ -13,6 +13,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AlertTriangle, Upload, Plus, ImageUp, Download, Package, TrendingUp, ShieldCheck, DollarSign, Warehouse, Info, ClipboardList, CalendarX, ScanSearch } from 'lucide-react';
 import { useProducts } from '@/hooks/use-products';
+import { isLowStock } from './lib/low-stock';
 import { useAnomalies } from '@/hooks/use-anomalies';
 import { useAuthStore } from '@/features/auth/store/use-auth-store';
 import { useProfitReport } from '@/features/reports/hooks/use-reports';
@@ -115,7 +116,7 @@ export function InventoryPage() {
 
   // ── KPI stats ─────────────────────────────────────────────────────────────
   const outOfStock = products.filter((p) => p.currentStock <= 0).length;
-  const lowStock = products.filter((p) => p.currentStock > 0 && p.currentStock < 10).length;
+  const lowStock = products.filter(isLowStock).length;
   const priced = products.filter((p) => p.sellingPrice > 0);
   const avgMargin =
     priced.length > 0
@@ -226,7 +227,7 @@ export function InventoryPage() {
   const STAT_CARDS = [
     { id: 'all', label: 'Total Items', value: products.length.toLocaleString(), sub: 'in inventory', color: 'oklch(0.4 0.15 230)' },
     { id: 'out', label: 'Out of Stock', value: outOfStock.toLocaleString(), sub: 'need restocking', color: 'var(--primary)' },
-    { id: 'low', label: 'Low Stock', value: lowStock.toLocaleString(), sub: 'below 10 units', color: 'oklch(0.55 0.15 60)' },
+    { id: 'low', label: 'Low Stock', value: lowStock.toLocaleString(), sub: 'at/below reorder point', color: 'oklch(0.55 0.15 60)' },
     { id: 'margin', label: 'Avg Margin', value: `${avgMargin.toFixed(1)}%`, sub: 'profit margin', color: 'oklch(0.4 0.15 145)' },
   ];
 

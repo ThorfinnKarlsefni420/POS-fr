@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useItemStock } from '@/hooks/use-locations';
 import type { PackagingTier, Product } from '@/types/pos';
+import { isLowStock } from '../lib/low-stock';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -369,7 +370,7 @@ export function InventoryTable({ recountFilter = false, stockFilter = 'all', add
     let list = products;
     if (recountFilter) list = list.filter((p) => p.currentStock < 0);
     if (stockFilter === 'out') list = list.filter((p) => p.currentStock <= 0);
-    if (stockFilter === 'low') list = list.filter((p) => p.currentStock > 0 && p.currentStock < 10);
+    if (stockFilter === 'low') list = list.filter(isLowStock);
     if (categoryFilter) list = list.filter((p) => p.category === categoryFilter);
     const q = search.toLowerCase();
     if (!q) return list;

@@ -128,7 +128,7 @@ reportsRouter.get('/inventory', async (c) => {
   const [items, adjustments] = await Promise.all([
     prisma.item.findMany({
       where: storeId ? { storeId } : {},
-      select: { id: true, name: true, category: true, unit: true, currentStock: true, costPrice: true, sellingPrice: true },
+      select: { id: true, name: true, category: true, unit: true, currentStock: true, costPrice: true, sellingPrice: true, reorderPoint: true },
     }),
     prisma.inventoryAdjustment.findMany({
       where: storeId ? { item: { storeId } } : {},
@@ -141,8 +141,15 @@ reportsRouter.get('/inventory', async (c) => {
   const totalCostValue = items.reduce((s, i) => s + Number(i.costPrice) * Math.max(Number(i.currentStock), 0), 0);
   const totalRetailValue = items.reduce((s, i) => s + Number(i.sellingPrice) * Math.max(Number(i.currentStock), 0), 0);
 
+  // Falls back to the old flat threshold (<= 5) only for items with no
+  // reorderPoint set, so items without a configured minimum keep behaving as
+  // before. When reorderPoint is set, "low" means at or below it.
   const lowStock = items
-    .filter(i => Number(i.currentStock) > 0 && Number(i.currentStock) <= 5)
+    .filter(i => {
+      const stock = Number(i.currentStock);
+      if (stock <= 0) return false;
+      return i.reorderPoint != null ? stock <= Number(i.reorderPoint) : stock <= 5;
+    })
     .map(i => ({ id: i.id, name: i.name, category: i.category, currentStock: Number(i.currentStock), unit: i.unit }))
     .sort((a, b) => a.currentStock - b.currentStock);
 

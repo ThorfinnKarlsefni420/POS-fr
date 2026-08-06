@@ -466,6 +466,7 @@ export interface ApiItem {
   needsVatConfirmation?: boolean;
   isFractional: boolean;
   currentStock: string | number;
+  reorderPoint?: string | number | null;
   description?: string;
   notes?: string;
   imageUrl?: string;
@@ -884,6 +885,7 @@ export function apiItemToProduct(item: ApiItem) {
     needsVatConfirmation: item.needsVatConfirmation ?? false,
     isFractional: item.isFractional,
     currentStock: Number(item.currentStock),
+    reorderPoint: item.reorderPoint != null ? Number(item.reorderPoint) : null,
     description: item.description,
     notes: item.notes,
     imageUrl: item.imageUrl,
