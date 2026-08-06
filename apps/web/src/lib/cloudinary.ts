@@ -3,6 +3,9 @@ export interface CloudinaryUploadResult {
   public_id: string;
 }
 
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
+const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10MB
+
 export async function uploadToCloudinary(
   file: File,
   cloudName: string,
@@ -11,6 +14,12 @@ export async function uploadToCloudinary(
 ): Promise<CloudinaryUploadResult> {
   if (!cloudName || !uploadPreset) {
     throw new Error('Cloudinary cloud name and upload preset are required. Configure them in Admin → Image Settings.');
+  }
+  if (!ALLOWED_TYPES.includes(file.type)) {
+    throw new Error(`"${file.name}" isn't a supported image type. Use JPEG, PNG, WebP, GIF, or AVIF.`);
+  }
+  if (file.size > MAX_FILE_BYTES) {
+    throw new Error(`"${file.name}" is ${(file.size / 1024 / 1024).toFixed(1)}MB — max is 10MB.`);
   }
 
   const form = new FormData();

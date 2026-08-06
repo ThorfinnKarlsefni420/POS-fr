@@ -394,20 +394,28 @@ export function InventoryTable({ recountFilter = false, stockFilter = 'all', add
     setEditForm({ ...product });
     setEditTab('basic');
     setUploadError('');
+    // A previous item's upload may still be in flight; its result now targets
+    // that item (see handleImageUpload's guard), so this dialog starts clean.
+    setUploadingImage(false);
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const targetItemId = editItem?.id;
     setUploadingImage(true);
     setUploadError('');
     try {
       const result = await uploadToCloudinary(file, cloudinaryCloudName, cloudinaryUploadPreset, editForm.sku);
+      // The dialog may have switched to a different item while this upload was
+      // in flight — don't let a stale result overwrite whatever's open now.
+      if (editItem?.id !== targetItemId) return;
       setEditForm((f) => ({ ...f, imageUrl: result.secure_url }));
     } catch (err) {
+      if (editItem?.id !== targetItemId) return;
       setUploadError((err as Error).message);
     } finally {
-      setUploadingImage(false);
+      if (editItem?.id === targetItemId) setUploadingImage(false);
       if (imageFileRef.current) imageFileRef.current.value = '';
     }
   };

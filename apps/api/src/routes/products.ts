@@ -738,12 +738,13 @@ productsRouter.post(
 
 // Bulk set image URL on multiple items by ID
 productsRouter.post('/bulk-image', async (c) => {
+  const { storeId } = await getStoreContext(c);
   const body = await c.req.json<{ ids: string[]; imageUrl: string }>();
   if (!body.ids?.length || !body.imageUrl?.trim()) {
     return c.json({ error: 'ids and imageUrl required' }, 400);
   }
   const result = await prisma.item.updateMany({
-    where: { id: { in: body.ids } },
+    where: { id: { in: body.ids }, ...(storeId ? { storeId } : {}) },
     data: { imageUrl: body.imageUrl.trim() },
   });
   return c.json({ updated: result.count });

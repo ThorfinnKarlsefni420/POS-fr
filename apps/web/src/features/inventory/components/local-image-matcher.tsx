@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { FolderOpen, CheckCircle, XCircle, Loader2, X, Search, Plus } from 'lucide-react';
 import { useProducts } from '@/hooks/use-products';
@@ -15,9 +15,11 @@ function tokenize(s: string): string[] {
   return s.toLowerCase().replace(/[^a-z0-9]/g, ' ').split(/\s+/).filter((t) => t.length > 1);
 }
 
-function matchScore(a: string, b: string): number {
-  const fa = tokenize(a);
-  const fb = tokenize(b);
+// Takes pre-tokenized arrays — tokenizing a product's name is done once per
+// product (see productIndex below), not once per file × product. With a
+// large catalog (10k+ items), re-tokenizing every product name for every
+// selected file was the actual source of the freeze/crash on big batches.
+function matchScoreTokens(fa: string[], fb: string[]): number {
   if (!fa.length || !fb.length) return 0;
   let matched = 0;
   for (const ta of fa) {
@@ -30,6 +32,13 @@ function stemFilename(filename: string): string {
   return filename.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ').trim();
 }
 
+// Collapses to a comparable key for *exact* matching (ignoring case,
+// punctuation, spacing) so "black-pepper.jpg" / "Black Pepper" / "black_pepper"
+// all resolve to the same key.
+function normalizeExact(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Candidate {
@@ -37,6 +46,7 @@ interface Candidate {
   name: string;
   sku: string;
   score: number; // 0 = manually added
+  isExact?: boolean;
 }
 
 interface MatchRow {
@@ -65,8 +75,9 @@ function LazyPreview({ file }: { file: File }) {
 
 // ─── Score badge ──────────────────────────────────────────────────────────────
 
-function ScoreBadge({ score }: { score: number }) {
+function ScoreBadge({ score, isExact }: { score: number; isExact?: boolean }) {
   if (score === 0) return <span className="text-[10px] text-muted-foreground px-1.5 py-0.5 rounded-full bg-muted">manual</span>;
+  if (isExact) return <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-green-700 bg-green-500/15">exact</span>;
   const cls = score >= 0.6 ? 'text-green-600 bg-green-500/10' : score >= 0.3 ? 'text-amber-600 bg-amber-500/10' : 'text-muted-foreground bg-muted';
   return <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${cls}`}>{Math.round(score * 100)}%</span>;
 }
@@ -86,6 +97,21 @@ export function LocalImageMatcher({ open, onClose }: Props) {
   const [uploading, setUploading] = useState(false);
   const [processing, setProcessing] = useState(false);
 
+  // Tokenized/normalized once per product, reused across every file in the
+  // batch — this is what keeps large batches from freezing the tab.
+  const productIndex = useMemo(
+    () =>
+      products.map((p) => ({
+        id: p.id,
+        name: p.name,
+        sku: p.sku,
+        tokens: tokenize(p.name),
+        normName: normalizeExact(p.name),
+        normSku: normalizeExact(p.sku),
+      })),
+    [products]
+  );
+
   const rowVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => containerRef.current,
@@ -98,19 +124,38 @@ export function LocalImageMatcher({ open, onClose }: Props) {
     if (!files || !files.length) return;
     setProcessing(true);
     const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
-    const CHUNK = 50;
+    const CHUNK = 20;
     const newRows: MatchRow[] = [];
 
     for (let i = 0; i < imageFiles.length; i += CHUNK) {
       const chunk = imageFiles.slice(i, i + CHUNK);
       for (const file of chunk) {
         const stem = stemFilename(file.name);
-        const candidates: Candidate[] = products
-          .map((p) => ({ id: p.id, name: p.name, sku: p.sku, score: matchScore(stem, p.name) }))
-          .filter((c) => c.score > 0)
+        const stemTokens = tokenize(stem);
+        const normStem = normalizeExact(stem);
+
+        const scored: Candidate[] = productIndex.map((p) => {
+          const isExact = normStem.length > 0 && (normStem === p.normName || normStem === p.normSku);
+          return {
+            id: p.id,
+            name: p.name,
+            sku: p.sku,
+            score: isExact ? 1 : matchScoreTokens(stemTokens, p.tokens),
+            isExact,
+          };
+        });
+
+        const exactMatches = scored.filter((c) => c.isExact);
+        // An exact filename match to a product's name or SKU is unambiguous —
+        // surface only that (or those, if several products share the name)
+        // instead of burying it in a pile of loose fuzzy partial matches.
+        const candidates = (exactMatches.length > 0 ? exactMatches : scored.filter((c) => c.score > 0))
           .sort((a, b) => b.score - a.score)
           .slice(0, 20);
-        const checkedIds = candidates.filter((c) => c.score >= 0.3).map((c) => c.id);
+        const checkedIds =
+          exactMatches.length > 0
+            ? exactMatches.map((c) => c.id)
+            : candidates.filter((c) => c.score >= 0.3).map((c) => c.id);
         newRows.push({ file, stem, candidates, checkedIds, rowSearch: '', status: 'pending' });
       }
       await new Promise((r) => setTimeout(r, 0));
@@ -305,7 +350,7 @@ export function LocalImageMatcher({ open, onClose }: Props) {
                                   {checked && <svg viewBox="0 0 8 8" className="h-2 w-2 fill-primary-foreground"><path d="M1 4l2 2 4-4" stroke="currentColor" strokeWidth="1.5" fill="none" /></svg>}
                                 </span>
                                 <span className="truncate max-w-[160px]">{c.name}</span>
-                                <ScoreBadge score={c.score} />
+                                <ScoreBadge score={c.score} isExact={c.isExact} />
                               </button>
                             );
                           })}
