@@ -1,12 +1,19 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, apiItemToProduct } from '@/lib/api';
 import { Product } from '@/types/pos';
+import { useAuthStore } from '@/features/auth/store/use-auth-store';
 
-export const PRODUCTS_KEY = ['products'] as const;
+// Scoped by storeId so switching stores/users in the same session can't serve
+// another store's cached items (X-Store-Id header changes, but an unscoped
+// key would keep returning the previous store's cached response).
+export function productsKey(storeId: string | null | undefined) {
+  return ['products', storeId ?? 'superadmin'] as const;
+}
 
 export function useProducts() {
+  const storeId = useAuthStore((s) => s.user?.storeId);
   return useQuery({
-    queryKey: PRODUCTS_KEY,
+    queryKey: productsKey(storeId),
     queryFn: async () => {
       const items = await api.products.list();
       return items.map(apiItemToProduct);
@@ -20,7 +27,7 @@ export function useUpdateProduct() {
   return useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Partial<Product> }) =>
       api.products.update(id, updates as never),
-    onSuccess: () => qc.invalidateQueries({ queryKey: PRODUCTS_KEY }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
   });
 }
 
@@ -28,7 +35,7 @@ export function useDeleteProduct() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.products.delete(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: PRODUCTS_KEY }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['products'] }),
   });
 }
 
@@ -42,7 +49,7 @@ export function useImportProducts() {
       if (data.firstErrors?.length) {
         console.error('[IMPORT FIRST ERRORS]', data.firstErrors);
       }
-      qc.invalidateQueries({ queryKey: PRODUCTS_KEY });
+      qc.invalidateQueries({ queryKey: ['products'] });
     },
   });
 }

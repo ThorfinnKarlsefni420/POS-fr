@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from '@/lib/query-client';
 import { AppShell } from '@/components/layout/app-shell';
 import { PosPage } from '@/features/pos/pos-page';
 import { InventoryPage } from '@/features/inventory/inventory-page';
@@ -14,10 +15,6 @@ import { SuperAdminPage } from '@/features/superadmin/superadmin-page';
 import { useOfflineSync } from '@/hooks/use-offline-sync';
 import { useSettingsSync } from '@/hooks/use-settings-sync';
 import { useAuthStore } from '@/features/auth/store/use-auth-store';
-
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
-});
 
 function AppRoutes() {
   useOfflineSync();

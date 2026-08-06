@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { queryClient } from '@/lib/query-client';
 
 export interface AuthUser {
   id: string;
@@ -24,7 +25,10 @@ export const useAuthStore = create<AuthState>()(
       shiftId: null,
       setUser: (user) => set({ user }),
       setShiftId: (shiftId) => set({ shiftId }),
-      logout: () => set({ user: null, shiftId: null }),
+      logout: () => {
+        queryClient.clear();
+        set({ user: null, shiftId: null });
+      },
     }),
     { name: 'nomadbite_session' }
   )
