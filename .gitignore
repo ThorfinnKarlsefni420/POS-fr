@@ -10,3 +10,5 @@ dist
 !README.md
 !INVENTORY-AUDIT-STANDARDS.md
 .aider*
+.vercel
+.env*
