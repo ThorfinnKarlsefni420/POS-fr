@@ -104,24 +104,28 @@ export function LocalImageMatcher({ open, onClose }: Props) {
   const handleFiles = async (files: FileList | null) => {
     if (!files || !files.length) return;
     setProcessing(true);
+    const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    const CHUNK = 20;
+    const newRows: MatchRow[] = [];
 
-    // Only the first image is ever taken — even when a folder with thousands
-    // of files is dropped/selected, we don't want to queue a batch.
-    const file = Array.from(files).find((f) => f.type.startsWith('image/'));
-    if (!file) {
-      setProcessing(false);
-      return;
+    for (let i = 0; i < imageFiles.length; i += CHUNK) {
+      const chunk = imageFiles.slice(i, i + CHUNK);
+      for (const file of chunk) {
+        const stem = stemFilename(file.name);
+        const normStem = normalizeExact(stem);
+
+        // Only exact filename→product-name/SKU matches are surfaced — no fuzzy fallback.
+        const candidates: Candidate[] = productIndex
+          .filter((p) => normStem.length > 0 && (normStem === p.normName || normStem === p.normSku))
+          .map((p) => ({ id: p.id, name: p.name, sku: p.sku, score: 1, isExact: true }));
+        if (candidates.length === 0) continue;
+        const checkedIds = candidates.map((c) => c.id);
+        newRows.push({ file, stem, candidates, checkedIds, rowSearch: '', status: 'pending' });
+      }
+      await new Promise((r) => setTimeout(r, 0));
     }
 
-    const stem = stemFilename(file.name);
-    const normStem = normalizeExact(stem);
-
-    // Only exact filename→product-name/SKU matches are surfaced — no fuzzy fallback.
-    const candidates: Candidate[] = productIndex
-      .filter((p) => normStem.length > 0 && (normStem === p.normName || normStem === p.normSku))
-      .map((p) => ({ id: p.id, name: p.name, sku: p.sku, score: 1, isExact: true }));
-    const checkedIds = candidates.map((c) => c.id);
-    setRows([{ file, stem, candidates, checkedIds, rowSearch: '', status: 'pending' }]);
+    setRows((prev) => [...prev, ...newRows]);
     setProcessing(false);
   };
 
@@ -193,9 +197,9 @@ export function LocalImageMatcher({ open, onClose }: Props) {
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>
       <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col gap-3">
         <DialogHeader>
-          <DialogTitle className="font-black">Match Local Image to Products</DialogTitle>
+          <DialogTitle className="font-black">Match Local Images to Products</DialogTitle>
           <p className="text-xs text-muted-foreground">
-            Select one image at a time — if its filename exactly matches a product name or SKU, that product is pre-selected. Uncheck it, or search to add others.
+            Only images whose filename exactly matches a product name or SKU are listed — the rest are skipped automatically. Uncheck any you don't want, or search to add more.
           </p>
         </DialogHeader>
 
@@ -207,9 +211,9 @@ export function LocalImageMatcher({ open, onClose }: Props) {
           onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
         >
           <FolderOpen className="h-7 w-7 mx-auto mb-1.5 text-muted-foreground/50" />
-          <p className="text-sm font-semibold">Drop an image here or click to browse</p>
-          <p className="text-xs text-muted-foreground mt-0.5">JPG, PNG, WEBP — one image at a time</p>
-          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFiles(e.target.files)} />
+          <p className="text-sm font-semibold">Drop images here or click to browse</p>
+          <p className="text-xs text-muted-foreground mt-0.5">JPG, PNG, WEBP — select any number</p>
+          <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
         </div>
 
         {processing && (
@@ -221,6 +225,8 @@ export function LocalImageMatcher({ open, onClose }: Props) {
 
         {rows.length > 0 && (
           <div className="flex items-center gap-3 text-xs font-medium shrink-0 text-muted-foreground">
+            <span>{rows.length} images</span>
+            <span>·</span>
             <span>{rows.reduce((s, r) => s + r.checkedIds.length, 0)} products will be updated</span>
             {doneCount > 0 && <span className="text-primary ml-auto">{doneCount} uploaded</span>}
           </div>

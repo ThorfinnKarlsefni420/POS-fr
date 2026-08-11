@@ -120,41 +120,41 @@ export function SuperAdminImageMatcher({ open, onClose, products, cloudinaryClou
   const handleFiles = async (files: FileList | null) => {
     if (!files || !files.length || noCloudinary) return;
     setProcessing(true);
+    const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    const CHUNK = 20;
+    const newRows: MatchRow[] = [];
 
-    // Only the first image is ever taken — even when a folder with thousands
-    // of files is dropped/selected against the master (all-stores) inventory,
-    // we don't want to queue a batch.
-    const file = Array.from(files).find((f) => f.type.startsWith('image/'));
-    if (!file) {
-      setProcessing(false);
-      return;
+    for (let i = 0; i < imageFiles.length; i += CHUNK) {
+      for (const file of imageFiles.slice(i, i + CHUNK)) {
+        const stem = stemFilename(file.name);
+        const stemTokens = tokenize(stem);
+        const normStem = normalizeExact(stem);
+
+        const scored: Candidate[] = productIndex.map((p) => {
+          const isExact = normStem.length > 0 && (normStem === p.normName || normStem === p.normSku);
+          return {
+            id: p.id,
+            name: p.name,
+            sku: p.sku,
+            score: isExact ? 1 : matchScoreTokens(stemTokens, p.tokens),
+            isExact,
+          };
+        });
+
+        const exactMatches = scored.filter((c) => c.isExact);
+        const candidates = (exactMatches.length > 0 ? exactMatches : scored.filter((c) => c.score > 0))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 20);
+        const checkedIds =
+          exactMatches.length > 0
+            ? exactMatches.map((c) => c.id)
+            : candidates.filter((c) => c.score >= 0.3).map((c) => c.id);
+        newRows.push({ file, stem, candidates, checkedIds, rowSearch: '', status: 'pending' });
+      }
+      await new Promise((r) => setTimeout(r, 0));
     }
 
-    const stem = stemFilename(file.name);
-    const stemTokens = tokenize(stem);
-    const normStem = normalizeExact(stem);
-
-    const scored: Candidate[] = productIndex.map((p) => {
-      const isExact = normStem.length > 0 && (normStem === p.normName || normStem === p.normSku);
-      return {
-        id: p.id,
-        name: p.name,
-        sku: p.sku,
-        score: isExact ? 1 : matchScoreTokens(stemTokens, p.tokens),
-        isExact,
-      };
-    });
-
-    const exactMatches = scored.filter((c) => c.isExact);
-    const candidates = (exactMatches.length > 0 ? exactMatches : scored.filter((c) => c.score > 0))
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 20);
-    const checkedIds =
-      exactMatches.length > 0
-        ? exactMatches.map((c) => c.id)
-        : candidates.filter((c) => c.score >= 0.3).map((c) => c.id);
-
-    setRows([{ file, stem, candidates, checkedIds, rowSearch: '', status: 'pending' }]);
+    setRows((prev) => [...prev, ...newRows]);
     setProcessing(false);
   };
 
@@ -233,9 +233,9 @@ export function SuperAdminImageMatcher({ open, onClose, products, cloudinaryClou
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>
       <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col gap-3">
         <DialogHeader>
-          <DialogTitle className="font-black">Image Upload — Master Inventory</DialogTitle>
+          <DialogTitle className="font-black">Bulk Image Upload — Master Inventory</DialogTitle>
           <p className="text-xs text-muted-foreground">
-            Select one image at a time. It can still update multiple products across all stores — matches ≥30% are pre-selected, or use search to add more.
+            Each image can update multiple products across all stores. Matches ≥30% are pre-selected. Use search to add more.
           </p>
         </DialogHeader>
 
@@ -256,9 +256,9 @@ export function SuperAdminImageMatcher({ open, onClose, products, cloudinaryClou
           onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
         >
           <FolderOpen className="h-7 w-7 mx-auto mb-1.5 text-muted-foreground/50" />
-          <p className="text-sm font-semibold">Drop an image here or click to browse</p>
-          <p className="text-xs text-muted-foreground mt-0.5">JPG, PNG, WEBP — one image at a time</p>
-          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFiles(e.target.files)} />
+          <p className="text-sm font-semibold">Drop images here or click to browse</p>
+          <p className="text-xs text-muted-foreground mt-0.5">JPG, PNG, WEBP — select any number</p>
+          <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
         </div>
 
         {processing && (
@@ -270,6 +270,8 @@ export function SuperAdminImageMatcher({ open, onClose, products, cloudinaryClou
 
         {rows.length > 0 && (
           <div className="flex items-center gap-3 text-xs font-medium shrink-0 text-muted-foreground">
+            <span>{rows.length} images</span>
+            <span>·</span>
             <span>{rows.reduce((s, r) => s + r.checkedIds.length, 0)} products will be updated across all stores</span>
             {doneCount > 0 && <span className="text-orange-600 ml-auto">{doneCount} uploaded</span>}
           </div>
