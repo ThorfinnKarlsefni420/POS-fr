@@ -9,25 +9,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Product } from '@/types/pos';
 
-// ─── Fuzzy matching ───────────────────────────────────────────────────────────
-
-function tokenize(s: string): string[] {
-  return s.toLowerCase().replace(/[^a-z0-9]/g, ' ').split(/\s+/).filter((t) => t.length > 1);
-}
-
-// Takes pre-tokenized arrays — tokenizing a product's name is done once per
-// product (see productIndex below), not once per file × product. With a
-// large catalog (10k+ items), re-tokenizing every product name for every
-// selected file was the actual source of the freeze/crash on big batches.
-function matchScoreTokens(fa: string[], fb: string[]): number {
-  if (!fa.length || !fb.length) return 0;
-  let matched = 0;
-  for (const ta of fa) {
-    if (fb.some((tb) => tb.startsWith(ta) || ta.startsWith(tb))) matched++;
-  }
-  return matched / Math.max(fa.length, fb.length);
-}
-
 function stemFilename(filename: string): string {
   return filename.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ').trim();
 }
@@ -57,6 +38,7 @@ interface MatchRow {
   rowSearch: string;
   status: 'pending' | 'uploading' | 'done' | 'error';
   updatedCount?: number;
+  error?: string;
 }
 
 // ─── Lazy preview — creates/revokes blob URL only while mounted ───────────────
@@ -105,7 +87,6 @@ export function LocalImageMatcher({ open, onClose }: Props) {
         id: p.id,
         name: p.name,
         sku: p.sku,
-        tokens: tokenize(p.name),
         normName: normalizeExact(p.name),
         normSku: normalizeExact(p.sku),
       })),
@@ -123,45 +104,24 @@ export function LocalImageMatcher({ open, onClose }: Props) {
   const handleFiles = async (files: FileList | null) => {
     if (!files || !files.length) return;
     setProcessing(true);
-    const imageFiles = Array.from(files).filter((f) => f.type.startsWith('image/'));
-    const CHUNK = 20;
-    const newRows: MatchRow[] = [];
 
-    for (let i = 0; i < imageFiles.length; i += CHUNK) {
-      const chunk = imageFiles.slice(i, i + CHUNK);
-      for (const file of chunk) {
-        const stem = stemFilename(file.name);
-        const stemTokens = tokenize(stem);
-        const normStem = normalizeExact(stem);
-
-        const scored: Candidate[] = productIndex.map((p) => {
-          const isExact = normStem.length > 0 && (normStem === p.normName || normStem === p.normSku);
-          return {
-            id: p.id,
-            name: p.name,
-            sku: p.sku,
-            score: isExact ? 1 : matchScoreTokens(stemTokens, p.tokens),
-            isExact,
-          };
-        });
-
-        const exactMatches = scored.filter((c) => c.isExact);
-        // An exact filename match to a product's name or SKU is unambiguous —
-        // surface only that (or those, if several products share the name)
-        // instead of burying it in a pile of loose fuzzy partial matches.
-        const candidates = (exactMatches.length > 0 ? exactMatches : scored.filter((c) => c.score > 0))
-          .sort((a, b) => b.score - a.score)
-          .slice(0, 20);
-        const checkedIds =
-          exactMatches.length > 0
-            ? exactMatches.map((c) => c.id)
-            : candidates.filter((c) => c.score >= 0.3).map((c) => c.id);
-        newRows.push({ file, stem, candidates, checkedIds, rowSearch: '', status: 'pending' });
-      }
-      await new Promise((r) => setTimeout(r, 0));
+    // Only the first image is ever taken — even when a folder with thousands
+    // of files is dropped/selected, we don't want to queue a batch.
+    const file = Array.from(files).find((f) => f.type.startsWith('image/'));
+    if (!file) {
+      setProcessing(false);
+      return;
     }
 
-    setRows((prev) => [...prev, ...newRows]);
+    const stem = stemFilename(file.name);
+    const normStem = normalizeExact(stem);
+
+    // Only exact filename→product-name/SKU matches are surfaced — no fuzzy fallback.
+    const candidates: Candidate[] = productIndex
+      .filter((p) => normStem.length > 0 && (normStem === p.normName || normStem === p.normSku))
+      .map((p) => ({ id: p.id, name: p.name, sku: p.sku, score: 1, isExact: true }));
+    const checkedIds = candidates.map((c) => c.id);
+    setRows([{ file, stem, candidates, checkedIds, rowSearch: '', status: 'pending' }]);
     setProcessing(false);
   };
 
@@ -209,8 +169,8 @@ export function LocalImageMatcher({ open, onClose }: Props) {
         const result = await uploadToCloudinary(row.file, cloudinaryCloudName, cloudinaryUploadPreset, product.sku);
         const { updated } = await api.products.bulkImage(row.checkedIds, result.secure_url);
         setRows((prev) => prev.map((r, idx) => idx === i ? { ...r, status: 'done', updatedCount: updated } : r));
-      } catch {
-        setRows((prev) => prev.map((r, idx) => idx === i ? { ...r, status: 'error' } : r));
+      } catch (err) {
+        setRows((prev) => prev.map((r, idx) => idx === i ? { ...r, status: 'error', error: (err as Error).message } : r));
       }
     }
 
@@ -233,9 +193,9 @@ export function LocalImageMatcher({ open, onClose }: Props) {
     <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>
       <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col gap-3">
         <DialogHeader>
-          <DialogTitle className="font-black">Match Local Images to Products</DialogTitle>
+          <DialogTitle className="font-black">Match Local Image to Products</DialogTitle>
           <p className="text-xs text-muted-foreground">
-            Each image can update multiple products. All matches above 30% are pre-selected — uncheck any you don't want, or search to add more.
+            Select one image at a time — if its filename exactly matches a product name or SKU, that product is pre-selected. Uncheck it, or search to add others.
           </p>
         </DialogHeader>
 
@@ -247,9 +207,9 @@ export function LocalImageMatcher({ open, onClose }: Props) {
           onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files); }}
         >
           <FolderOpen className="h-7 w-7 mx-auto mb-1.5 text-muted-foreground/50" />
-          <p className="text-sm font-semibold">Drop images here or click to browse</p>
-          <p className="text-xs text-muted-foreground mt-0.5">JPG, PNG, WEBP — select any number</p>
-          <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleFiles(e.target.files)} />
+          <p className="text-sm font-semibold">Drop an image here or click to browse</p>
+          <p className="text-xs text-muted-foreground mt-0.5">JPG, PNG, WEBP — one image at a time</p>
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleFiles(e.target.files)} />
         </div>
 
         {processing && (
@@ -261,8 +221,6 @@ export function LocalImageMatcher({ open, onClose }: Props) {
 
         {rows.length > 0 && (
           <div className="flex items-center gap-3 text-xs font-medium shrink-0 text-muted-foreground">
-            <span>{rows.length} images</span>
-            <span>·</span>
             <span>{rows.reduce((s, r) => s + r.checkedIds.length, 0)} products will be updated</span>
             {doneCount > 0 && <span className="text-primary ml-auto">{doneCount} uploaded</span>}
           </div>
@@ -358,7 +316,11 @@ export function LocalImageMatcher({ open, onClose }: Props) {
                       )}
 
                       {row.candidates.length === 0 && row.status === 'pending' && (
-                        <p className="text-xs text-muted-foreground italic">No automatic matches found — use search to add products.</p>
+                        <p className="text-xs text-muted-foreground italic">No exact filename match — use search to add a product.</p>
+                      )}
+
+                      {row.status === 'error' && row.error && (
+                        <p className="text-xs text-destructive">{row.error}</p>
                       )}
 
                       {/* Search to add more products */}
