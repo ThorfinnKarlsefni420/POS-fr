@@ -76,9 +76,24 @@ export function PurchaseOrdersPanel() {
   const saveTermsMutation = useMutation({
     mutationFn: (data: { itemId: string; minOrderQty: number | null; orderMultiple: number | null }) =>
       api.supplierItems.save({ supplierId, ...data }),
-    onSuccess: () => {
+    onSuccess: (_result, { itemId, minOrderQty, orderMultiple }) => {
       qc.invalidateQueries({ queryKey: ['supplier-items', supplierId] });
       setEditingTermsFor(null);
+      // Bring the line's quantity up to the newly-set terms if it's now short,
+      // so the user doesn't have to separately notice and fix the violation.
+      const product = products.find((p) => p.id === itemId);
+      setLines((prev) => prev.map((l) => {
+        if (l.itemId !== itemId) return l;
+        const baseQty = toBaseQty(l.orderedQty, l.tierId, product?.packagingTiers);
+        let newBaseQty = baseQty;
+        if (minOrderQty != null && newBaseQty < minOrderQty) newBaseQty = minOrderQty;
+        if (orderMultiple != null && orderMultiple > 0 && !isMultipleOf(newBaseQty, orderMultiple)) {
+          newBaseQty = Math.ceil(newBaseQty / orderMultiple) * orderMultiple;
+        }
+        if (newBaseQty === baseQty) return l;
+        const tier = l.tierId ? product?.packagingTiers?.find((t) => t.id === l.tierId) : null;
+        return { ...l, orderedQty: tier ? newBaseQty / tier.quantityInBase : newBaseQty };
+      }));
     },
   });
 

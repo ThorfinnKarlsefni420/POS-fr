@@ -16,6 +16,7 @@ export function SupplierModal({ supplier, onClose, onSaved }: SupplierModalProps
   const [isConsignment, setIsConsign]  = useState(supplier?.isConsignment ?? true);
   const [defaultType, setDefaultType] = useState<'PERCENTAGE_COMMISSION' | 'VENDOR_SELL_PRICE' | 'MARGIN_SPLIT'>(supplier?.defaultType ?? 'PERCENTAGE_COMMISSION');
   const [defaultRate, setDefaultRate] = useState(String(supplier?.defaultRate ?? '0'));
+  const [minOrderValue, setMinOrderValue] = useState(supplier?.minOrderValue != null ? String(supplier.minOrderValue) : '');
   const [saving, setSaving]           = useState(false);
   const [error, setError]             = useState('');
 
@@ -31,6 +32,7 @@ export function SupplierModal({ supplier, onClose, onSaved }: SupplierModalProps
         isConsignment,
         defaultType,
         defaultRate: Number(defaultRate) || 0,
+        minOrderValue: minOrderValue === '' ? null : Number(minOrderValue),
       };
       if (isEdit) {
         await api.suppliers.update(supplier.id, data);
@@ -83,6 +85,20 @@ export function SupplierModal({ supplier, onClose, onSaved }: SupplierModalProps
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Min. Order Value (KES)</label>
+          <input
+            type="number"
+            min="0"
+            step="any"
+            placeholder="none — no whole-order minimum"
+            className="w-full h-10 rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm"
+            value={minOrderValue}
+            onChange={(e) => setMinOrderValue(e.target.value)}
+          />
+          <p className="text-xs text-gray-400">Purchase orders to this supplier must total at least this much, or they're blocked.</p>
         </div>
 
         <label className={`flex items-start gap-3 rounded-xl border-2 p-4 cursor-pointer transition-colors ${isConsignment ? 'border-emerald-300 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'}`}>
