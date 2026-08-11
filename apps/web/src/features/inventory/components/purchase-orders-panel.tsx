@@ -1,9 +1,24 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api, ApiPODetail, ApiPOLineInput } from '@/lib/api';
+import { api, ApiPODetail, ApiPOLineInput, ApiSupplierItem } from '@/lib/api';
 import { useProducts } from '@/hooks/use-products';
-import { Plus, ChevronRight, Truck, Check, X, Search, PackageCheck } from 'lucide-react';
+import { Plus, ChevronRight, Truck, Check, X, Search, PackageCheck, Settings2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+
+// orderedQty on a line is expressed in whatever tier the line was placed in
+// (e.g. "3 cartons"); MOQ/orderMultiple are always base-unit, so convert before
+// comparing. Mirrors the server-side conversion in purchase-order-validation.ts —
+// keep both in sync if this changes.
+function toBaseQty(orderedQty: number, tierId: string | undefined, packagingTiers: { id: string; quantityInBase: number }[] | undefined): number {
+  const tier = tierId ? packagingTiers?.find((t) => t.id === tierId) : null;
+  return tier ? orderedQty * tier.quantityInBase : orderedQty;
+}
+
+function isMultipleOf(value: number, multiple: number): boolean {
+  const EPSILON = 1e-6;
+  const remainder = value % multiple;
+  return remainder < EPSILON || multiple - remainder < EPSILON;
+}
 
 const STATUS_COLORS: Record<string, string> = {
   DRAFT: 'bg-muted text-muted-foreground',
@@ -23,11 +38,12 @@ export function PurchaseOrdersPanel() {
 
   // Create form state
   const [refNo, setRefNo] = useState('');
-  const [vendorName, setVendorName] = useState('');
+  const [supplierId, setSupplierId] = useState('');
   const [expectedAt, setExpectedAt] = useState('');
   const [notes, setNotes] = useState('');
   const [lines, setLines] = useState<(ApiPOLineInput & { _search: string })[]>([]);
   const [lineSearch, setLineSearch] = useState('');
+  const [editingTermsFor, setEditingTermsFor] = useState<string | null>(null); // itemId
 
   // Receive state — per-line qty inputs
   const [receiveQtys, setReceiveQtys] = useState<Record<string, string>>({});
@@ -43,10 +59,33 @@ export function PurchaseOrdersPanel() {
     enabled: !!selectedId,
   });
 
+  const { data: suppliers = [] } = useQuery({
+    queryKey: ['suppliers'],
+    queryFn: () => api.suppliers.list(),
+  });
+
+  // Purchasing terms (MOQ, order multiple, lead time...) for the chosen supplier.
+  const { data: supplierItems = [] } = useQuery({
+    queryKey: ['supplier-items', supplierId],
+    queryFn: () => api.supplierItems.list({ supplierId }),
+    enabled: !!supplierId,
+  });
+  const termsMap = new Map<string, ApiSupplierItem>(supplierItems.map((si) => [si.itemId, si]));
+  const selectedSupplier = suppliers.find((s) => s.id === supplierId);
+
+  const saveTermsMutation = useMutation({
+    mutationFn: (data: { itemId: string; minOrderQty: number | null; orderMultiple: number | null }) =>
+      api.supplierItems.save({ supplierId, ...data }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['supplier-items', supplierId] });
+      setEditingTermsFor(null);
+    },
+  });
+
   const createMutation = useMutation({
     mutationFn: () => api.purchaseOrders.create({
       referenceNo: refNo || undefined,
-      vendorName: vendorName || undefined,
+      supplierId,
       expectedAt: expectedAt || undefined,
       notes: notes || undefined,
       lines: lines.map(({ _search, ...l }) => l),
@@ -92,18 +131,43 @@ export function PurchaseOrdersPanel() {
   });
 
   const resetCreateForm = () => {
-    setRefNo(''); setVendorName(''); setExpectedAt(''); setNotes(''); setLines([]); setLineSearch('');
+    setRefNo(''); setSupplierId(''); setExpectedAt(''); setNotes(''); setLines([]); setLineSearch(''); setEditingTermsFor(null);
   };
 
   const addLine = (productId: string) => {
     const p = products.find((x) => x.id === productId);
     if (!p) return;
     if (lines.find((l) => l.itemId === productId)) return;
-    setLines((prev) => [...prev, { itemId: p.id, orderedQty: 1, unitCost: p.costPrice, _search: p.name }]);
+    const terms = termsMap.get(productId);
+    // Default to the supplier's minimum (rounded up to the nearest order
+    // multiple, if one's set too), so the line starts already valid.
+    let defaultQty = terms?.minOrderQty != null ? Number(terms.minOrderQty) : 1;
+    if (terms?.orderMultiple != null && Number(terms.orderMultiple) > 0) {
+      const multiple = Number(terms.orderMultiple);
+      defaultQty = Math.ceil(defaultQty / multiple) * multiple;
+    }
+    setLines((prev) => [...prev, { itemId: p.id, orderedQty: defaultQty, unitCost: p.costPrice, _search: p.name }]);
     setLineSearch('');
   };
 
-  const filteredSearch = lineSearch.trim()
+  const lineViolation = (line: ApiPOLineInput, product: ReturnType<typeof products.find>): string | null => {
+    const terms = termsMap.get(line.itemId);
+    if (!terms) return null;
+    const baseQty = toBaseQty(line.orderedQty, line.tierId, product?.packagingTiers);
+    if (terms.minOrderQty != null && baseQty < Number(terms.minOrderQty)) {
+      return `Below supplier min of ${Number(terms.minOrderQty).toLocaleString()}`;
+    }
+    if (terms.orderMultiple != null && Number(terms.orderMultiple) > 0 && !isMultipleOf(baseQty, Number(terms.orderMultiple))) {
+      return `Must be a multiple of ${Number(terms.orderMultiple).toLocaleString()}`;
+    }
+    return null;
+  };
+
+  const orderTotal = lines.reduce((s, l) => s + l.orderedQty * l.unitCost, 0);
+  const belowMinOrderValue = selectedSupplier?.minOrderValue != null && orderTotal < Number(selectedSupplier.minOrderValue);
+  const hasLineViolation = lines.some((l) => lineViolation(l, products.find((p) => p.id === l.itemId)) != null);
+
+  const filteredSearch = lineSearch.trim() && supplierId
     ? products.filter((p) => !lines.find((l) => l.itemId === p.id) && (p.name.toLowerCase().includes(lineSearch.toLowerCase()) || p.sku.toLowerCase().includes(lineSearch.toLowerCase()))).slice(0, 8)
     : [];
 
@@ -148,7 +212,7 @@ export function PurchaseOrdersPanel() {
             >
               <div className="min-w-0">
                 <p className="text-sm font-semibold truncate">{po.referenceNo || `PO-${po.id.slice(-6).toUpperCase()}`}</p>
-                <p className="text-xs text-muted-foreground">{po.vendorName || 'No vendor'} · {po.lineCount} items · KES {po.totalCost.toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground">{po.supplier?.name || po.vendorName || 'No supplier'} · {po.lineCount} items · KES {po.totalCost.toLocaleString()}</p>
                 <p className="text-[10px] text-muted-foreground">{new Date(po.createdAt).toLocaleDateString('en-KE', { dateStyle: 'medium' })}</p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
@@ -174,7 +238,9 @@ export function PurchaseOrdersPanel() {
             <div className="flex items-start justify-between">
               <div>
                 <h2 className="text-xl font-black">{selectedPO.referenceNo || `PO-${selectedPO.id.slice(-6).toUpperCase()}`}</h2>
-                {selectedPO.vendorName && <p className="text-sm text-muted-foreground">{selectedPO.vendorName}</p>}
+                {(selectedPO.supplier?.name || selectedPO.vendorName) && (
+                  <p className="text-sm text-muted-foreground">{selectedPO.supplier?.name || selectedPO.vendorName}</p>
+                )}
                 {selectedPO.expectedAt && (
                   <p className="text-xs text-muted-foreground">
                     Expected: {new Date(selectedPO.expectedAt).toLocaleDateString('en-KE', { dateStyle: 'medium' })}
@@ -283,10 +349,22 @@ export function PurchaseOrdersPanel() {
                 <input className="w-full rounded-xl border px-3 py-2 text-sm" placeholder="PO-2026-001" value={refNo} onChange={(e) => setRefNo(e.target.value)} />
               </div>
               <div>
-                <p className="text-xs font-semibold text-muted-foreground mb-1">Wholesale / Supplier</p>
-                <input className="w-full rounded-xl border px-3 py-2 text-sm" placeholder="Supplier name" value={vendorName} onChange={(e) => setVendorName(e.target.value)} />
+                <p className="text-xs font-semibold text-muted-foreground mb-1">Supplier</p>
+                <select
+                  className="w-full rounded-xl border px-3 py-2 text-sm bg-background"
+                  value={supplierId}
+                  onChange={(e) => { setSupplierId(e.target.value); setLines([]); }}
+                >
+                  <option value="">Select a supplier…</option>
+                  {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
               </div>
             </div>
+            {!supplierId && suppliers.length === 0 && (
+              <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2">
+                No suppliers yet — add one from the Consignment tab first.
+              </p>
+            )}
             <div>
               <p className="text-xs font-semibold text-muted-foreground mb-1">Expected Delivery</p>
               <input type="date" className="w-full rounded-xl border px-3 py-2 text-sm" value={expectedAt} onChange={(e) => setExpectedAt(e.target.value)} />
@@ -300,13 +378,14 @@ export function PurchaseOrdersPanel() {
             <div>
               <p className="text-xs font-semibold text-muted-foreground mb-1">Items</p>
               <div className="relative">
-                <div className="flex items-center gap-2 rounded-xl border px-3 py-2">
+                <div className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${!supplierId ? 'opacity-50' : ''}`}>
                   <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <input
                     className="flex-1 text-xs bg-transparent outline-none placeholder:text-muted-foreground"
-                    placeholder="Search items to add…"
+                    placeholder={supplierId ? 'Search items to add…' : 'Choose a supplier first…'}
                     value={lineSearch}
                     onChange={(e) => setLineSearch(e.target.value)}
+                    disabled={!supplierId}
                   />
                 </div>
                 {filteredSearch.length > 0 && (
@@ -333,45 +412,99 @@ export function PurchaseOrdersPanel() {
                       </tr>
                     </thead>
                     <tbody className="divide-y">
-                      {lines.map((line, i) => (
-                        <tr key={line.itemId}>
-                          <td className="p-2 font-medium">{line._search}</td>
-                          <td className="p-2">
-                            <input
-                              type="number" min="0.001" step="any"
-                              className="w-16 text-right rounded border px-1.5 py-0.5 text-xs ml-auto block"
-                              value={line.orderedQty}
-                              onChange={(e) => setLines((prev) => prev.map((l, j) => j === i ? { ...l, orderedQty: Number(e.target.value) } : l))}
-                            />
-                          </td>
-                          <td className="p-2">
-                            <input
-                              type="number" min="0" step="any"
-                              className="w-20 text-right rounded border px-1.5 py-0.5 text-xs ml-auto block"
-                              value={line.unitCost}
-                              onChange={(e) => setLines((prev) => prev.map((l, j) => j === i ? { ...l, unitCost: Number(e.target.value) } : l))}
-                            />
-                          </td>
-                          <td className="p-2 text-center">
-                            <button onClick={() => setLines((prev) => prev.filter((_, j) => j !== i))}>
-                              <X className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {lines.map((line, i) => {
+                        const product = products.find((p) => p.id === line.itemId);
+                        const terms = termsMap.get(line.itemId);
+                        const violation = lineViolation(line, product);
+                        return (
+                          <Fragment key={line.itemId}>
+                            <tr>
+                              <td className="p-2 font-medium">
+                                {line._search}
+                                {terms?.minOrderQty != null && (
+                                  <p className={`text-[10px] font-normal ${violation ? 'text-destructive' : 'text-muted-foreground'}`}>
+                                    Supplier min: {Number(terms.minOrderQty).toLocaleString()}
+                                    {terms.orderMultiple != null && ` · multiples of ${Number(terms.orderMultiple).toLocaleString()}`}
+                                  </p>
+                                )}
+                                {violation && <p className="text-[10px] font-semibold text-destructive">{violation}</p>}
+                              </td>
+                              <td className="p-2">
+                                <input
+                                  type="number" min="0.001" step="any"
+                                  className={`w-16 text-right rounded border px-1.5 py-0.5 text-xs ml-auto block ${violation ? 'border-destructive' : ''}`}
+                                  value={line.orderedQty}
+                                  onChange={(e) => setLines((prev) => prev.map((l, j) => j === i ? { ...l, orderedQty: Number(e.target.value) } : l))}
+                                />
+                              </td>
+                              <td className="p-2">
+                                <input
+                                  type="number" min="0" step="any"
+                                  className="w-20 text-right rounded border px-1.5 py-0.5 text-xs ml-auto block"
+                                  value={line.unitCost}
+                                  onChange={(e) => setLines((prev) => prev.map((l, j) => j === i ? { ...l, unitCost: Number(e.target.value) } : l))}
+                                />
+                              </td>
+                              <td className="p-2 text-center">
+                                <div className="flex items-center gap-1 justify-center">
+                                  <button
+                                    title="Set purchasing terms for this item with this supplier"
+                                    onClick={() => setEditingTermsFor(editingTermsFor === line.itemId ? null : line.itemId)}
+                                    className="text-muted-foreground hover:text-foreground"
+                                  >
+                                    <Settings2 className="h-3.5 w-3.5" />
+                                  </button>
+                                  <button onClick={() => setLines((prev) => prev.filter((_, j) => j !== i))}>
+                                    <X className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                            {editingTermsFor === line.itemId && (
+                              <TermsEditorRow
+                                initialMinOrderQty={terms?.minOrderQty != null ? Number(terms.minOrderQty) : null}
+                                initialOrderMultiple={terms?.orderMultiple != null ? Number(terms.orderMultiple) : null}
+                                saving={saveTermsMutation.isPending}
+                                onCancel={() => setEditingTermsFor(null)}
+                                onSave={(minOrderQty, orderMultiple) =>
+                                  saveTermsMutation.mutate({ itemId: line.itemId, minOrderQty, orderMultiple })
+                                }
+                              />
+                            )}
+                          </Fragment>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               )}
             </div>
 
+            {belowMinOrderValue && selectedSupplier && (
+              <p className="text-xs text-destructive bg-destructive/8 rounded-lg px-3 py-2">
+                Order total KES {orderTotal.toLocaleString()} is below {selectedSupplier.name}'s minimum order value of KES {Number(selectedSupplier.minOrderValue).toLocaleString()}.
+              </p>
+            )}
+
+            {createMutation.isError && (
+              <p className="text-xs text-destructive bg-destructive/8 rounded-lg px-3 py-2">
+                {(createMutation.error as Error).message}
+              </p>
+            )}
+
             <button
               onClick={() => createMutation.mutate()}
-              disabled={lines.length === 0 || createMutation.isPending}
+              disabled={!supplierId || lines.length === 0 || hasLineViolation || belowMinOrderValue || createMutation.isPending}
               className="w-full py-2.5 rounded-xl font-bold text-sm disabled:opacity-60"
               style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
             >
-              {createMutation.isPending ? 'Creating…' : 'Create Purchase Order'}
+              {createMutation.isPending
+                ? 'Creating…'
+                : hasLineViolation
+                ? 'Fix quantities below supplier requirements'
+                : belowMinOrderValue
+                ? 'Below supplier minimum order value'
+                : 'Create Purchase Order'}
             </button>
           </div>
         </DialogContent>
@@ -431,5 +564,63 @@ export function PurchaseOrdersPanel() {
         </Dialog>
       )}
     </div>
+  );
+}
+
+// Inline editor for a (supplier, item) pair's purchasing terms — surfaced from
+// a PO line so terms can be set/corrected without leaving the create flow.
+function TermsEditorRow({
+  initialMinOrderQty,
+  initialOrderMultiple,
+  saving,
+  onCancel,
+  onSave,
+}: {
+  initialMinOrderQty: number | null;
+  initialOrderMultiple: number | null;
+  saving: boolean;
+  onCancel: () => void;
+  onSave: (minOrderQty: number | null, orderMultiple: number | null) => void;
+}) {
+  const [minOrderQty, setMinOrderQty] = useState(initialMinOrderQty != null ? String(initialMinOrderQty) : '');
+  const [orderMultiple, setOrderMultiple] = useState(initialOrderMultiple != null ? String(initialOrderMultiple) : '');
+
+  return (
+    <tr className="bg-muted/30">
+      <td colSpan={4} className="p-2">
+        <div className="flex items-end gap-2 flex-wrap">
+          <div>
+            <p className="text-[10px] font-semibold text-muted-foreground mb-0.5">Min. Order Qty</p>
+            <input
+              type="number" min="0" step="any" placeholder="none"
+              className="w-24 rounded border px-1.5 py-1 text-xs"
+              value={minOrderQty}
+              onChange={(e) => setMinOrderQty(e.target.value)}
+            />
+          </div>
+          <div>
+            <p className="text-[10px] font-semibold text-muted-foreground mb-0.5">Order Multiple</p>
+            <input
+              type="number" min="0" step="any" placeholder="none"
+              className="w-24 rounded border px-1.5 py-1 text-xs"
+              value={orderMultiple}
+              onChange={(e) => setOrderMultiple(e.target.value)}
+            />
+          </div>
+          <button
+            onClick={() => onSave(minOrderQty === '' ? null : Number(minOrderQty), orderMultiple === '' ? null : Number(orderMultiple))}
+            disabled={saving}
+            className="px-2.5 py-1 rounded-lg text-xs font-bold disabled:opacity-60"
+            style={{ background: 'var(--primary)', color: 'var(--primary-foreground)' }}
+          >
+            {saving ? 'Saving…' : 'Save terms'}
+          </button>
+          <button onClick={onCancel} className="px-2.5 py-1 rounded-lg text-xs font-semibold border hover:bg-muted">
+            Cancel
+          </button>
+        </div>
+        <p className="text-[10px] text-muted-foreground mt-1">These terms apply to this item with this supplier only.</p>
+      </td>
+    </tr>
   );
 }

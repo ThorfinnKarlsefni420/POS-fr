@@ -29,6 +29,7 @@ suppliersRouter.post('/', async (c) => {
     isConsignment?: boolean;
     defaultType?: 'PERCENTAGE_COMMISSION' | 'VENDOR_SELL_PRICE' | 'MARGIN_SPLIT';
     defaultRate?: number;
+    minOrderValue?: number | null;
   }>();
 
   if (!body.name?.trim()) return c.json({ error: 'name is required' }, 400);
@@ -42,6 +43,7 @@ suppliersRouter.post('/', async (c) => {
       isConsignment: body.isConsignment ?? false,
       defaultType: body.defaultType ?? 'PERCENTAGE_COMMISSION',
       defaultRate: body.defaultRate ?? 0,
+      minOrderValue: body.minOrderValue ?? null,
     },
   });
 
@@ -58,6 +60,7 @@ suppliersRouter.patch('/:id', async (c) => {
     isConsignment?: boolean;
     defaultType?: 'PERCENTAGE_COMMISSION' | 'VENDOR_SELL_PRICE' | 'MARGIN_SPLIT';
     defaultRate?: number;
+    minOrderValue?: number | null;
   }>();
 
   const supplier = await prisma.supplier.update({
@@ -69,6 +72,7 @@ suppliersRouter.patch('/:id', async (c) => {
       isConsignment: body.isConsignment,
       defaultType: body.defaultType,
       defaultRate: body.defaultRate,
+      ...(body.minOrderValue !== undefined && { minOrderValue: body.minOrderValue }),
     },
   });
 

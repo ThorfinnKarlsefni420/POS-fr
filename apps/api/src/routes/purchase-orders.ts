@@ -8,6 +8,7 @@ import {
   pushGoodsReceiptToD365,
   type D365Credentials,
 } from '../lib/dynamics365';
+import { validatePurchaseOrderLines } from '../lib/purchase-order-validation';
 
 async function getD365CredsForStore(storeId: string): Promise<D365Credentials | null> {
   const integration = await prisma.warehouseIntegration.findFirst({
@@ -21,6 +22,7 @@ async function getD365CredsForStore(storeId: string): Promise<D365Credentials | 
 export const purchaseOrdersRouter = new Hono();
 
 const PO_INCLUDE = {
+  supplier: { select: { id: true, name: true, phone: true, email: true } },
   lines: {
     include: {
       item: { select: { id: true, name: true, sku: true, unit: true, costPrice: true } },
@@ -40,6 +42,7 @@ purchaseOrdersRouter.get('/', async (c) => {
       ...(status ? { status: status as never } : {}),
     },
     include: {
+      supplier: { select: { id: true, name: true } },
       _count: { select: { lines: true } },
       lines: { select: { orderedQty: true, receivedQty: true, unitCost: true } },
     },
@@ -51,6 +54,8 @@ purchaseOrdersRouter.get('/', async (c) => {
       id: po.id,
       referenceNo: po.referenceNo,
       vendorName: po.vendorName,
+      supplierId: po.supplierId,
+      supplier: po.supplier,
       status: po.status,
       expectedAt: po.expectedAt,
       notes: po.notes,
@@ -74,19 +79,32 @@ purchaseOrdersRouter.post('/', async (c) => {
 
   const body = await c.req.json<{
     referenceNo?: string;
-    vendorName?: string;
+    supplierId: string;
     expectedAt?: string;
     notes?: string;
     lines: Array<{ itemId: string; tierId?: string; orderedQty: number; unitCost: number; notes?: string }>;
   }>();
 
   if (!body.lines?.length) return c.json({ error: 'At least one line required' }, 400);
+  if (!body.supplierId) return c.json({ error: 'supplierId is required' }, 400);
+
+  const supplier = await prisma.supplier.findUnique({
+    where: { id: body.supplierId },
+    select: { id: true, storeId: true, name: true },
+  });
+  if (!supplier || supplier.storeId !== storeId) return c.json({ error: 'Supplier not found' }, 404);
+
+  const result = await validatePurchaseOrderLines(body.supplierId, body.lines);
+  if (!result.ok) {
+    return c.json({ error: result.error, violations: result.violations }, 400);
+  }
 
   const po = await prisma.purchaseOrder.create({
     data: {
       storeId,
       referenceNo: body.referenceNo?.trim() ?? null,
-      vendorName: body.vendorName?.trim() ?? null,
+      supplierId: supplier.id,
+      vendorName: supplier.name,
       expectedAt: body.expectedAt ? new Date(body.expectedAt) : null,
       notes: body.notes?.trim() ?? null,
       status: 'DRAFT',

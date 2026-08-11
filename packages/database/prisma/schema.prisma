@@ -180,6 +180,7 @@ model Item {
   adjustments      InventoryAdjustment[]
   poLines          POLine[]
   promos           Promo[]
+  supplierItems    SupplierItem[] // per-supplier purchasing terms (MOQ, order multiple, lead time...) for this item
 
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
@@ -462,7 +463,9 @@ model PurchaseOrder {
   storeId     String
   store       Store     @relation(fields: [storeId], references: [id])
   referenceNo String?
-  vendorName  String?
+  vendorName  String?   // free-text display fallback; derived from supplier.name for new POs, kept for legacy POs created before supplierId existed
+  supplierId  String?
+  supplier    Supplier? @relation(fields: [supplierId], references: [id])
   status      POStatus  @default(DRAFT)
   expectedAt  DateTime?
   notes       String?
@@ -604,7 +607,10 @@ model Supplier {
   defaultType      ConsignmentType       @default(FIXED_COST)
   defaultRate      Decimal               @default(0) @db.Decimal(10, 4)
   hybridConfig     Json?                 // extensible config for HYBRID settlement formulas
+  minOrderValue    Decimal?              @db.Decimal(12, 2) // whole-PO minimum spend this supplier requires, in KES
   items            Item[]
+  supplierItems    SupplierItem[]
+  purchaseOrders   PurchaseOrder[]
   consignmentSales ConsignmentSale[]
   settlements      ConsignmentSettlement[]
   users            User[]
@@ -612,6 +618,30 @@ model Supplier {
   updatedAt        DateTime              @updatedAt
 
   @@unique([storeId, name])
+}
+
+// ─── Supplier ↔ Item purchasing terms ─────────────────────────────────────────
+// A purchasing constraint between one supplier and one item — NOT the same as
+// Item.supplierId (that's the single "owning"/consignment supplier). The same
+// item can have different MOQ/pricing/lead-time depending on which supplier
+// it's ordered from, hence a join table rather than a field on Item.
+
+model SupplierItem {
+  id            String   @id @default(cuid())
+  supplierId    String
+  supplier      Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  itemId        String
+  item          Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  supplierSku   String?
+  minOrderQty   Decimal? @db.Decimal(12, 3) // base units
+  orderMultiple Decimal? @db.Decimal(12, 3) // base units; orderedQty must be an exact multiple of this
+  leadTimeDays  Int?
+  isPreferred   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([supplierId, itemId])
+  @@index([itemId])
 }
 
 model ConsignmentSale {

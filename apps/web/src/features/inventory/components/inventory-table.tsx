@@ -954,6 +954,10 @@ export function InventoryTable({ recountFilter = false, stockFilter = 'all', add
                   />
                   <p className="text-[10px] text-muted-foreground">How many units to order at once.</p>
                 </div>
+                <p className="col-span-2 text-[10px] text-muted-foreground">
+                  Minimum order quantity is now set per-supplier, not per-item — see Purchase Orders when
+                  choosing a supplier for this item.
+                </p>
 
                 {/* Reorder status */}
                 {editForm.reorderPoint != null && (

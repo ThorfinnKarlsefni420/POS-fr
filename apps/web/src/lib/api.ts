@@ -114,7 +114,21 @@ export interface ApiShift {
   }>;
 }
 
+export interface ImageSyncStatus {
+  total: number;
+  processed: number;
+  success: number;
+  failed: number;
+  isRunning: boolean;
+  lastItem?: string;
+}
+
 export const api = {
+  imageSync: {
+    status: () => req<ImageSyncStatus>('/image-sync/status'),
+    start: () => req<{ message?: string }>('/image-sync/start', { method: 'POST' }),
+    stop: () => req<{ ok: boolean }>('/image-sync/stop', { method: 'POST' }),
+  },
   users: {
     list: () => req<ApiUser[]>('/users'),
     create: (data: { name: string; pin: string; role?: string; storeId?: string }) =>
@@ -293,7 +307,7 @@ export const api = {
   },
   purchaseOrders: {
     list: (status?: string) => req<ApiPO[]>(`/purchase-orders${status ? `?status=${status}` : ''}`),
-    create: (data: { referenceNo?: string; vendorName?: string; expectedAt?: string; notes?: string; lines: ApiPOLineInput[] }) =>
+    create: (data: { referenceNo?: string; supplierId: string; expectedAt?: string; notes?: string; lines: ApiPOLineInput[] }) =>
       req<ApiPODetail>('/purchase-orders', { method: 'POST', body: JSON.stringify(data) }),
     get: (id: string) => req<ApiPODetail>(`/purchase-orders/${id}`),
     update: (id: string, data: Partial<{ referenceNo: string; vendorName: string; expectedAt: string | null; notes: string; status: string }>) =>
@@ -362,6 +376,23 @@ export const api = {
     delete: (id: string) => req<{ ok: boolean }>(`/suppliers/${id}`, { method: 'DELETE' }),
     getMe: () => req<ApiSupplier & { items: ApiItem[]; consignmentSales: any[]; settlements: ApiSettlement[] }>('/suppliers/me'),
   },
+  supplierItems: {
+    list: (params: { supplierId?: string; itemId?: string }) => {
+      const qs = new URLSearchParams();
+      if (params.supplierId) qs.set('supplierId', params.supplierId);
+      if (params.itemId) qs.set('itemId', params.itemId);
+      const q = qs.toString();
+      return req<ApiSupplierItem[]>(`/supplier-items${q ? `?${q}` : ''}`);
+    },
+    // Create/update the terms for a (supplier, item) pair — the API upserts on this pairing.
+    save: (data: {
+      supplierId: string; itemId: string; supplierSku?: string;
+      minOrderQty?: number | null; orderMultiple?: number | null; leadTimeDays?: number | null; isPreferred?: boolean;
+    }) => req<ApiSupplierItem>('/supplier-items', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: Partial<Omit<ApiSupplierItem, 'id' | 'supplierId' | 'itemId' | 'item' | 'createdAt' | 'updatedAt'>>) =>
+      req<ApiSupplierItem>(`/supplier-items/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    delete: (id: string) => req<{ ok: boolean }>(`/supplier-items/${id}`, { method: 'DELETE' }),
+  },
   consignment: {
     pending: () => req<PendingConsignment[]>('/consignment/pending'),
     listSettlements: () => req<ApiSettlement[]>('/consignment/settlements'),
@@ -373,6 +404,21 @@ export const api = {
     paySettlement: (id: string) =>
       req<ApiSettlement>(`/consignment/settlements/${id}/pay`, { method: 'PATCH' }),
   },
+  guardrails: {
+    listWeekly: () => req<GuardrailWeeklyEntry[]>('/guardrails/weekly'),
+    prefillWeekly: (weekStart: string) =>
+      req<{ revenue: number; cogs: number }>(`/guardrails/weekly/prefill?weekStart=${weekStart}`),
+    saveWeekly: (data: GuardrailWeeklyInput) =>
+      req<GuardrailWeeklyEntry>('/guardrails/weekly', { method: 'POST', body: JSON.stringify(data) }),
+    deleteWeekly: (id: string) =>
+      req<{ ok: boolean }>(`/guardrails/weekly/${id}`, { method: 'DELETE' }),
+    listCohorts: () => req<GuardrailCohort[]>('/guardrails/cohorts'),
+    saveCohort: (data: GuardrailCohortInput) =>
+      req<GuardrailCohort>('/guardrails/cohorts', { method: 'POST', body: JSON.stringify(data) }),
+    deleteCohort: (id: string) =>
+      req<{ ok: boolean }>(`/guardrails/cohorts/${id}`, { method: 'DELETE' }),
+    dashboard: () => req<GuardrailDashboard>('/guardrails/dashboard'),
+  },
 };
 
 export interface ApiSupplier {
@@ -383,7 +429,24 @@ export interface ApiSupplier {
   isConsignment: boolean;
   defaultType: 'PERCENTAGE_COMMISSION' | 'VENDOR_SELL_PRICE' | 'MARGIN_SPLIT';
   defaultRate: number;
+  minOrderValue?: string | number | null; // whole-PO minimum spend this supplier requires, in KES
   createdAt: string;
+}
+
+// Purchasing terms between one supplier and one item — MOQ, order multiple, lead
+// time, supplier's own SKU. Distinct from the item's single "owning" supplierId.
+export interface ApiSupplierItem {
+  id: string;
+  supplierId: string;
+  itemId: string;
+  supplierSku?: string | null;
+  minOrderQty?: string | number | null;
+  orderMultiple?: string | number | null;
+  leadTimeDays?: number | null;
+  isPreferred: boolean;
+  item?: { id: string; name: string; sku: string; unit: string };
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface PendingConsignment {
@@ -617,6 +680,8 @@ export interface ApiPO {
   id: string;
   referenceNo?: string | null;
   vendorName?: string | null;
+  supplierId?: string | null;
+  supplier?: { id: string; name: string } | null;
   status: 'DRAFT' | 'ORDERED' | 'PARTIAL' | 'RECEIVED' | 'CANCELLED';
   expectedAt?: string | null;
   notes?: string | null;
@@ -866,6 +931,79 @@ export interface VatReport {
   pendingEtims: number;
   byCategory: Array<{ category: string; taxable: number; vat: number; zero: number; exempt: number }>;
   byMonth: Array<{ month: string; outputVat: number; taxableSales: number; zeroRated: number; exempt: number; txCount: number }>;
+}
+
+export interface GuardrailWeeklyEntry {
+  id: string;
+  weekStart: string;
+  revenue: number;
+  cogs: number;
+  avgInventoryValue: number;
+  deliverySubsidyCost: number;
+  marketingSpend: number;
+  firstOrderRevenue: number;
+  newCustomers: number;
+  notes: string | null;
+  marginPct: number | null;
+  inventoryDays: number | null;
+  subsidyPct: number | null;
+  marketingPct: number | null;
+}
+
+export type GuardrailWeeklyInput = {
+  weekStart: string;
+  revenue?: number;
+  cogs?: number;
+  avgInventoryValue?: number;
+  deliverySubsidyCost?: number;
+  marketingSpend?: number;
+  firstOrderRevenue?: number;
+  newCustomers?: number;
+  notes?: string;
+};
+
+export interface GuardrailCohort {
+  id: string;
+  cohortStartDate: string;
+  day60Date: string;
+  day60Passed: boolean;
+  newCustomersInCohort: number;
+  reorderedCount: number | null;
+  reorderRatePct: number | null;
+  notes: string | null;
+}
+
+export type GuardrailCohortInput = {
+  cohortStartDate: string;
+  newCustomersInCohort?: number;
+  reorderedCount?: number | null;
+  notes?: string;
+};
+
+export type GuardrailStatus = 'on_target' | 'watch' | 'off_target' | 'pending';
+
+export interface GuardrailDashboard {
+  latestWeek: {
+    weekStart: string;
+    marginPct: number | null;
+    inventoryDays: number | null;
+    subsidyPct: number | null;
+    marketingPct: number | null;
+  } | null;
+  latestCohort: {
+    cohortStartDate: string;
+    newCustomersInCohort: number;
+    reorderedCount: number | null;
+    reorderRatePct: number | null;
+  } | null;
+  guardrails: Array<{
+    key: 'margin' | 'inventoryDays' | 'subsidy' | 'marketing' | 'reorder';
+    label: string;
+    target: string;
+    latest: number | null;
+    rollingAvg: number | null;
+    status: GuardrailStatus;
+  }>;
 }
 
 export function apiItemToProduct(item: ApiItem) {
