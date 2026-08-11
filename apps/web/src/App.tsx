@@ -8,6 +8,7 @@ import { SupplierPage } from '@/features/supplier/supplier-page';
 import { AdminPage } from '@/features/admin/admin-page';
 import { ReturnsPage } from '@/features/returns/returns-page';
 import { ReportsPage } from '@/features/reports/reports-page';
+// import { GuardrailsPage } from '@/features/guardrails/guardrails-page'; // disabled for now
 import { CustomersPage } from '@/features/customers/customers-page';
 import { PinGate } from '@/features/auth/components/pin-gate';
 import { LoginPage } from '@/features/auth/components/login-page';

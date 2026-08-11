@@ -35,6 +35,8 @@ model Store {
   suppliers            Supplier[]
   consignmentSettlements ConsignmentSettlement[]
   inventoryAnomalies   InventoryAnomaly[]
+  weeklyGuardrailEntries WeeklyGuardrailEntry[]
+  reorderCohorts       ReorderCohort[]
   createdAt            DateTime       @default(now())
   updatedAt            DateTime       @updatedAt
 }
@@ -751,4 +753,43 @@ model InventoryAnomaly {
 
   @@index([storeId])
   @@index([storeId, resolved])
+}
+
+// ─── Weekly Guardrail Tracker ─────────────────────────────────────────────────
+// Mirrors the launch-budget guardrail workbook: one row per week of inputs,
+// plus one row per weekly new-customer cohort for the day-60 reorder check.
+
+model WeeklyGuardrailEntry {
+  id                  String   @id @default(cuid())
+  storeId             String
+  store               Store    @relation(fields: [storeId], references: [id])
+  weekStart           DateTime // Monday of the tracked week
+  revenue             Decimal  @default(0) @db.Decimal(12, 2)
+  cogs                Decimal  @default(0) @db.Decimal(12, 2)
+  avgInventoryValue   Decimal  @default(0) @db.Decimal(12, 2)
+  deliverySubsidyCost Decimal  @default(0) @db.Decimal(12, 2)
+  marketingSpend      Decimal  @default(0) @db.Decimal(12, 2)
+  firstOrderRevenue   Decimal  @default(0) @db.Decimal(12, 2)
+  newCustomers        Int      @default(0)
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([storeId, weekStart])
+  @@index([storeId, weekStart])
+}
+
+model ReorderCohort {
+  id                   String    @id @default(cuid())
+  storeId              String
+  store                Store     @relation(fields: [storeId], references: [id])
+  cohortStartDate      DateTime  // Monday of the cohort week; day-60 date is derived, not stored
+  newCustomersInCohort Int       @default(0)
+  reorderedCount       Int?      // null until day-60 has passed and someone records it
+  notes                String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@unique([storeId, cohortStartDate])
+  @@index([storeId, cohortStartDate])
 }
